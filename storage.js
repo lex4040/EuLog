@@ -100,13 +100,39 @@
       if (!raw) return createInitialState();
       const parsed = JSON.parse(raw);
       const base = createInitialState();
+      const supplements = Array.isArray(parsed.supplements) ? parsed.supplements : base.supplements;
+      const migrations = { ...(parsed.migrations || {}) };
+
+      // One-time migration: add Protein Scoop to existing users' supplement stacks
+      if (!migrations.proteinScoopAdded) {
+        const hasProtein = supplements.some((s) => /protein\s*scoop/i.test(s.name || ''));
+        if (!hasProtein) {
+          const defScoop = (global.EuLogSupplements?.DEFAULT_SUPPLEMENTS || []).find(
+            (s) => s.id === 'supp-protein-scoop'
+          );
+          if (defScoop) {
+            supplements.push({ ...defScoop, nutrients: { ...(defScoop.nutrients || {}) } });
+          }
+        }
+        migrations.proteinScoopAdded = true;
+      }
+
+      // Normalize legacy IU/mcg labels in existing default supplements to SI
+      for (const s of supplements) {
+        if (s.dose === '2,000 IU (50 mcg)') s.dose = '50 µg';
+        else if (s.dose === '500 mcg') s.dose = '500 µg';
+        else if (s.dose === '2,000 IU + 90 mcg MK-7') s.dose = '50 µg D3 + 90 µg K2';
+        else if (s.dose === '400 mcg DFE') s.dose = '400 µg DFE';
+      }
+
       return {
         ...base,
         ...parsed,
+        migrations,
         settings: { ...DEFAULT_SETTINGS, ...(parsed.settings || {}) },
         foodLogs: parsed.foodLogs || {},
         supplementLogs: parsed.supplementLogs || {},
-        supplements: Array.isArray(parsed.supplements) ? parsed.supplements : base.supplements,
+        supplements,
         customFoods: Array.isArray(parsed.customFoods) ? parsed.customFoods : [],
         favorites: Array.isArray(parsed.favorites) ? parsed.favorites : base.favorites,
         dailyNotes: parsed.dailyNotes || {},

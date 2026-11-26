@@ -66,7 +66,13 @@
   }
 
   function addSupplementToTotals(totals, supp) {
-    if (!supp || !supp.nutrients) return;
+    if (!supp) return;
+    if (Number(supp.calories) > 0) totals.calories += Number(supp.calories);
+    if (Number(supp.protein) > 0) totals.protein += Number(supp.protein);
+    if (Number(supp.carbs) > 0) totals.carbs += Number(supp.carbs);
+    if (Number(supp.fat) > 0) totals.fat += Number(supp.fat);
+    if (Number(supp.fiber) > 0) totals.fiber += Number(supp.fiber);
+    if (!supp.nutrients) return;
     for (const n of VITAL_NUTRIENTS) {
       const val = Number(supp.nutrients[n.key]);
       if (val > 0) totals[n.key] += val;

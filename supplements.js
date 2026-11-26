@@ -42,9 +42,35 @@
       notes: 'Energy metabolism & nervous system',
       nutrients: { vitB12: 500 },
     },
+    {
+      id: 'supp-protein-scoop',
+      name: 'Protein Scoop',
+      dose: '1 scoop (30 g · 24 g protein)',
+      timing: 'Anytime',
+      notes: 'Whey or plant protein scoop · adds 24 g protein & 120 kcal',
+      calories: 120,
+      protein: 24,
+      carbs: 3,
+      fat: 1.5,
+      fiber: 0.5,
+      nutrients: { vitB12: 0.9, calcium: 130, magnesium: 25, potassium: 160, zinc: 0.6 },
+    },
   ];
 
   const SUPPLEMENT_PRESETS = [
+    {
+      presetId: 'preset-protein-scoop',
+      name: 'Protein Scoop',
+      dose: '1 scoop (30 g · 24 g protein)',
+      timing: 'Anytime',
+      notes: 'Whey or plant protein scoop · adds 24 g protein & 120 kcal',
+      calories: 120,
+      protein: 24,
+      carbs: 3,
+      fat: 1.5,
+      fiber: 0.5,
+      nutrients: { vitB12: 0.9, calcium: 130, magnesium: 25, potassium: 160, zinc: 0.6 },
+    },
     {
       presetId: 'preset-multi',
       name: 'Daily Multivitamin',
@@ -151,6 +177,8 @@
       dose: '10 g scoop',
       timing: 'Morning',
       notes: 'Skin, joints & connective tissue',
+      calories: 36,
+      protein: 9,
       nutrients: {},
     },
   ];
@@ -178,6 +206,8 @@
     const nuts = supp.nutrients || {};
     const defs = global.EuLogNutrients?.VITAL_NUTRIENTS || [];
     const parts = [];
+    if (Number(supp.protein) > 0) parts.push(`Protein ${supp.protein}g`);
+    if (Number(supp.calories) > 0) parts.push(`${supp.calories} kcal`);
     for (const d of defs) {
       const v = Number(nuts[d.key]);
       if (v > 0) {

@@ -1303,6 +1303,11 @@
             dose: preset.dose,
             timing: preset.timing,
             notes: preset.notes,
+            ...(preset.calories ? { calories: preset.calories } : {}),
+            ...(preset.protein ? { protein: preset.protein } : {}),
+            ...(preset.carbs ? { carbs: preset.carbs } : {}),
+            ...(preset.fat ? { fat: preset.fat } : {}),
+            ...(preset.fiber ? { fiber: preset.fiber } : {}),
             nutrients: { ...(preset.nutrients || {}) },
           });
           persist();
