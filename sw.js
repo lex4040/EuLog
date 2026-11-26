@@ -7,7 +7,7 @@
      use or Preload.
    ========================================================================== */
 
-const APP_CACHE = 'eulog-offline-v10';
+const APP_CACHE = 'eulog-offline-v11';
 const AI_CACHE = 'eulog-ai-cache-v1';
 
 const APP_ASSETS = [

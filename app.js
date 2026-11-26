@@ -47,6 +47,7 @@
   let foodsSearchQuery = '';
   let foodsSortBy = 'name';
   let expandedNutrientKey = null;
+  let expandedEntryId = null;
 
   // Modal state
   let activeModalFood = null;
@@ -223,7 +224,8 @@
           ? ''
           : `<div class="meal-entries">${mealEntries
               .map((entry) => {
-                const food = entry.snapshot || findFoodById(entry.foodId);
+                const liveFood = findFoodById(entry.foodId);
+                const food = entry.snapshot || liveFood;
                 if (!food) return '';
                 const mult = Number(entry.servings) || 1;
                 const kcal = Math.round((food.calories || 0) * mult);
@@ -231,16 +233,35 @@
                 const c = Math.round((food.carbs || 0) * mult);
                 const f = Math.round((food.fat || 0) * mult);
                 const multStr = mult === 1 ? food.serving : `${mult}× ${food.serving}`;
+                const desc = food.description || liveFood?.description || `${food.name} (${food.category || 'Food'}).`;
+                const isExpanded = expandedEntryId === entry.id;
+                let expandedHtml = '';
+                if (isExpanded) {
+                  const nuts = food.nutrients || liveFood?.nutrients || {};
+                  const topVitals = VITAL_NUTRIENTS.filter((v) => (nuts[v.key] || 0) * mult > 0)
+                    .slice(0, 5)
+                    .map((v) => `<span class="micro-badge">${escapeHtml(v.short)} ${formatNutrientValue(nuts[v.key] * mult, v.unit)}</span>`)
+                    .join('');
+                  expandedHtml = `
+                    <div class="entry-desc-box">
+                      <p class="entry-desc-text">${escapeHtml(desc)}</p>
+                      ${topVitals ? `<div class="supp-nut-badges">${topVitals}</div>` : ''}
+                    </div>
+                  `;
+                }
                 return `
-                  <div class="entry-row">
-                    <div class="entry-main">
-                      <span class="entry-name">${escapeHtml(food.name)}</span>
-                      <span class="entry-meta">${escapeHtml(multStr)} · ${p}g P · ${c}g C · ${f}g F</span>
+                  <div class="entry-row ${isExpanded ? 'is-expanded' : ''}" data-toggle-entry-desc="${escapeHtml(entry.id)}" role="button" tabindex="0" aria-expanded="${isExpanded}">
+                    <div class="entry-row-top">
+                      <div class="entry-main">
+                        <span class="entry-name">${escapeHtml(food.name)}</span>
+                        <span class="entry-meta">${escapeHtml(multStr)} · ${p}g P · ${c}g C · ${f}g F</span>
+                      </div>
+                      <div class="entry-right">
+                        <span class="entry-cal">${kcal} kcal</span>
+                        <button type="button" class="entry-del-btn" data-delete-entry="${escapeHtml(entry.id)}" aria-label="Remove ${escapeHtml(food.name)}">&times;</button>
+                      </div>
                     </div>
-                    <div class="entry-right">
-                      <span class="entry-cal">${kcal} kcal</span>
-                      <button type="button" class="entry-del-btn" data-delete-entry="${escapeHtml(entry.id)}" aria-label="Remove ${escapeHtml(food.name)}">&times;</button>
-                    </div>
+                    ${expandedHtml}
                   </div>
                 `;
               })
@@ -278,6 +299,7 @@
         name: food.name,
         category: food.category,
         serving: food.serving,
+        description: food.description || '',
         calories: food.calories,
         protein: food.protein,
         carbs: food.carbs,
@@ -690,8 +712,9 @@
     if (!food) return;
     activeModalFood = food;
 
-    $('food-modal-category').textContent = food.isCustom ? 'Custom Food' : `USDA · ${food.category}`;
+    $('food-modal-category').textContent = food.isCustom ? 'Custom Food' : `${food.category}`;
     $('food-modal-title').textContent = food.name;
+    $('food-modal-desc').textContent = food.description || '';
     $('food-modal-serving').textContent = food.serving;
     $('log-meal-select').value = mealOverride || pendingMealTarget || guessDefaultMeal();
     $('log-servings-input').value = '1';
@@ -1328,6 +1351,14 @@
       const delEntry = e.target.closest('[data-delete-entry]');
       if (delEntry) {
         deleteFoodEntry(delEntry.dataset.deleteEntry);
+        return;
+      }
+
+      const toggleEntry = e.target.closest('[data-toggle-entry-desc]');
+      if (toggleEntry) {
+        const eid = toggleEntry.dataset.toggleEntryDesc;
+        expandedEntryId = expandedEntryId === eid ? null : eid;
+        renderToday();
         return;
       }
 

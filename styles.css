@@ -782,13 +782,60 @@ button {
 
 .entry-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 9px 11px;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
   border-radius: var(--radius-sm);
   background: var(--sheet-elevated);
   border: 1px solid var(--rule);
+  cursor: pointer;
+  transition: border-color 0.16s var(--ease), background 0.16s var(--ease);
+}
+
+.entry-row:hover {
+  border-color: var(--rule-strong);
+  background: var(--sheet-hover);
+}
+
+.entry-row.is-expanded {
+  border-color: var(--accent);
+}
+
+.entry-row-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.entry-desc-box {
+  padding-top: 8px;
+  border-top: 1px solid var(--rule);
+  display: grid;
+  gap: 7px;
+  animation: fadeUp 0.16s var(--ease);
+}
+
+.entry-desc-text {
+  margin: 0;
+  font-size: 0.83rem;
+  line-height: 1.45;
+  color: var(--ink-secondary);
+}
+
+.food-modal-desc {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--sheet-elevated);
+  border: 1px solid var(--rule);
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--ink-secondary);
+}
+
+.food-modal-desc:empty {
+  display: none;
 }
 
 .entry-main {
