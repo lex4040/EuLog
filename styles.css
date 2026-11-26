@@ -1,115 +1,89 @@
 /* ==========================================================================
    EuLog — Daily Nutrition, Supplements & Weekly Vital Nutrients
-   Editorial Blush-Rose Light, True-Black AMOLED Dark & Warm Paper Themes
+   Editorial Dark Brown & White Palette (White & Espresso + Deep Dark Brown)
    ========================================================================== */
 
 :root,
-[data-theme="blush"] {
-  --bg: #fdf7fa;
+[data-theme="light"] {
+  --bg: #f7f4f1;
   --sheet: #ffffff;
-  --sheet-elevated: #fff9fc;
-  --sheet-hover: #fdf2f7;
-  --rule: #f0dce5;
-  --rule-strong: #e3c1d0;
+  --sheet-elevated: #faf8f6;
+  --sheet-hover: #f2ece7;
+  --rule: #e6ddd6;
+  --rule-strong: #d1c3b8;
 
-  --ink: #24181e;
-  --ink-secondary: #68545e;
-  --ink-muted: #98838e;
+  --ink: #241710;
+  --ink-secondary: #5c473c;
+  --ink-muted: #8b766a;
 
-  --accent: #d9487d;
-  --accent-hover: #c2376a;
-  --accent-soft: #fce6ef;
+  --accent: #462a1d;
+  --accent-hover: #311c13;
+  --accent-soft: #efe7e1;
   --accent-ink: #ffffff;
 
-  --protein: #d9487d;
-  --carbs: #c9862c;
-  --fat: #4b7c68;
-  --fiber: #7b61a6;
+  --protein: #462a1d;
+  --carbs: #9e6b3b;
+  --fat: #5c6f52;
+  --fiber: #7b5e50;
 
-  --status-ok: #2c7a5b;
-  --status-ok-soft: #e4f4ec;
-  --status-mid: #b97724;
-  --status-mid-soft: #fcf0df;
-  --status-low: #c4435d;
-  --status-low-soft: #fde8ec;
+  --status-ok: #2e6b4e;
+  --status-ok-soft: #e6f2ec;
+  --status-mid: #9c6621;
+  --status-mid-soft: #f8eee0;
+  --status-low: #9f3e34;
+  --status-low-soft: #f9e8e6;
 
-  --danger: #bf3952;
-  --danger-soft: #fde8ec;
+  --danger: #9f3e34;
+  --danger-soft: #f9e8e6;
 
   --radius-sm: 10px;
   --radius-md: 16px;
   --radius-lg: 22px;
   --radius-pill: 999px;
 
-  --shadow-card: 0 1px 3px rgba(68, 24, 46, 0.04), 0 10px 28px rgba(68, 24, 46, 0.05);
-  --shadow-modal: 0 22px 54px rgba(36, 16, 26, 0.2);
+  --shadow-card: 0 1px 3px rgba(36, 23, 16, 0.05), 0 10px 28px rgba(36, 23, 16, 0.05);
+  --shadow-modal: 0 22px 54px rgba(24, 14, 9, 0.24);
 
   --font-display: "Fraunces", Georgia, serif;
   --font-sans: "DM Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* True-Black AMOLED Dark Theme */
+/* Deep Dark Brown & Crisp White Mode */
 [data-theme="dark"] {
-  --bg: #000000;
-  --sheet: #121012;
-  --sheet-elevated: #191518;
-  --sheet-hover: #211b1f;
-  --rule: #2a2227;
-  --rule-strong: #3f333a;
+  --bg: #120c09;
+  --sheet: #1d1410;
+  --sheet-elevated: #261b15;
+  --sheet-hover: #30221b;
+  --rule: #382921;
+  --rule-strong: #4e3b30;
 
-  --ink: #f7f1f4;
-  --ink-secondary: #bdaeb6;
-  --ink-muted: #84747d;
+  --ink: #ffffff;
+  --ink-secondary: #d7cbc3;
+  --ink-muted: #9f8d82;
 
-  --accent: #ef6a9a;
-  --accent-hover: #f581ab;
-  --accent-soft: rgba(239, 106, 154, 0.16);
-  --accent-ink: #1b0910;
+  --accent: #ffffff;
+  --accent-hover: #ece5df;
+  --accent-soft: rgba(255, 255, 255, 0.12);
+  --accent-ink: #1e130d;
 
-  --protein: #ef6a9a;
-  --carbs: #e2a44c;
-  --fat: #5eb08e;
-  --fiber: #a58cd1;
+  --protein: #ffffff;
+  --carbs: #d9a773;
+  --fat: #9ab38d;
+  --fiber: #c7a999;
 
-  --status-ok: #58b88d;
-  --status-ok-soft: rgba(88, 184, 141, 0.16);
-  --status-mid: #e2a44c;
-  --status-mid-soft: rgba(226, 164, 76, 0.16);
-  --status-low: #ef6a84;
-  --status-low-soft: rgba(239, 106, 132, 0.16);
+  --status-ok: #7bc49d;
+  --status-ok-soft: rgba(123, 196, 157, 0.16);
+  --status-mid: #e0b06e;
+  --status-mid-soft: rgba(224, 176, 110, 0.16);
+  --status-low: #e38278;
+  --status-low-soft: rgba(227, 130, 120, 0.16);
 
-  --danger: #ee6a7e;
-  --danger-soft: rgba(238, 106, 126, 0.15);
+  --danger: #e38278;
+  --danger-soft: rgba(227, 130, 120, 0.15);
 
-  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.45);
+  --shadow-card: 0 2px 14px rgba(0, 0, 0, 0.45);
   --shadow-modal: 0 24px 56px rgba(0, 0, 0, 0.72);
-}
-
-/* Warm Paper Theme */
-[data-theme="paper"] {
-  --bg: #f5f1ea;
-  --sheet: #ffffff;
-  --sheet-elevated: #faf8f4;
-  --sheet-hover: #f7f4ee;
-  --rule: #e6dfd4;
-  --rule-strong: #d3c9ba;
-
-  --ink: #1e1c19;
-  --ink-secondary: #5c564c;
-  --ink-muted: #8b8377;
-
-  --accent: #c94676;
-  --accent-hover: #b23764;
-  --accent-soft: #fae8ef;
-  --accent-ink: #ffffff;
-
-  --protein: #c94676;
-  --carbs: #b87b26;
-  --fat: #2e6b52;
-  --fiber: #6d588f;
-
-  --shadow-card: 0 2px 6px rgba(28, 27, 24, 0.04), 0 12px 28px rgba(28, 27, 24, 0.05);
 }
 
 *,
@@ -176,7 +150,7 @@ button {
 
 .brand-icon {
   border-radius: 12px;
-  box-shadow: 0 2px 10px rgba(217, 72, 125, 0.18);
+  box-shadow: 0 2px 10px rgba(70, 42, 29, 0.16);
   flex-shrink: 0;
 }
 

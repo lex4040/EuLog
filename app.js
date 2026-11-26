@@ -99,13 +99,13 @@
 
   /* ==================== THEME ==================== */
   function applyTheme(themeName) {
-    const valid = ['blush', 'dark', 'paper'].includes(themeName) ? themeName : 'blush';
+    const valid = themeName === 'dark' ? 'dark' : 'light';
     state.settings.theme = valid;
     document.documentElement.setAttribute('data-theme', valid);
 
     const meta = $('theme-color-meta');
     if (meta) {
-      meta.content = valid === 'dark' ? '#000000' : valid === 'paper' ? '#f5f1ea' : '#fdf7fa';
+      meta.content = valid === 'dark' ? '#120c09' : '#f7f4f1';
     }
 
     const icon = $('theme-icon');
@@ -122,13 +122,10 @@
   }
 
   function cycleTheme() {
-    const order = ['blush', 'dark', 'paper'];
-    const idx = order.indexOf(state.settings.theme);
-    const next = order[(idx + 1) % order.length];
+    const next = state.settings.theme === 'dark' ? 'light' : 'dark';
     applyTheme(next);
     persist();
-    const labels = { blush: 'Blush Light', dark: 'AMOLED Dark', paper: 'Warm Paper' };
-    showToast(`Theme: ${labels[next]}`);
+    showToast(next === 'dark' ? 'Theme: Dark Brown' : 'Theme: White & Brown');
   }
 
   /* ==================== NAVIGATION ==================== */
@@ -223,7 +220,7 @@
 
       const rowsHtml =
         mealEntries.length === 0
-          ? `<p class="meal-empty">Tap + to log from ${USDA_FOODS.length} USDA foods</p>`
+          ? ''
           : `<div class="meal-entries">${mealEntries
               .map((entry) => {
                 const food = entry.snapshot || findFoodById(entry.foodId);

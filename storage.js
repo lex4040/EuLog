@@ -8,7 +8,7 @@
   const STORAGE_KEY = 'eulog_state_v1';
 
   const DEFAULT_SETTINGS = {
-    theme: 'blush', // 'blush' | 'dark' | 'paper'
+    theme: 'light', // 'light' (White & Brown) | 'dark' (Dark Brown & White)
     calorieGoal: 2000,
     proteinGoal: 110,
     carbsGoal: 225,

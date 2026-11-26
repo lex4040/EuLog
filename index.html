@@ -1,18 +1,18 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="blush">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>EuLog — Daily Nutrition, Supplements &amp; Weekly Vital Nutrients</title>
   <meta
     name="description"
-    content="EuLog is a private, offline-capable daily nutrition and supplement tracker featuring 153 USDA foods, on-device SigLIP food photo recognition, and Weekly Vital Nutrients analytics."
+    content="EuLog is a private, offline-capable daily nutrition and supplement tracker featuring 2,154 USDA and Greek foods, on-device SigLIP food photo recognition, and Weekly Vital Nutrients analytics."
   />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="EuLog" />
-  <meta name="theme-color" id="theme-color-meta" content="#fdf7fa" />
+  <meta name="theme-color" id="theme-color-meta" content="#f7f4f1" />
 
   <link rel="manifest" href="./manifest.json" />
   <link rel="icon" type="image/svg+xml" href="./icon.svg" />
@@ -30,7 +30,7 @@
     <!-- Top Bar -->
     <header class="top-bar">
       <div class="brand-group">
-        <img src="./icon-192.png" alt="EuLog pink chef hat icon" class="brand-icon" width="38" height="38" />
+        <img src="./icon-192.png" alt="EuLog chef hat icon" class="brand-icon" width="38" height="38" />
         <div class="brand-text">
           <h1 class="app-title">EuLog</h1>
           <span class="app-tagline">Nutrition &amp; Vital Nutrients</span>
@@ -46,12 +46,12 @@
       </nav>
 
       <div class="top-actions">
-        <button id="open-scan-btn" type="button" class="btn btn-primary btn-scan" title="Scan meal photo with on-device SigLIP">
+        <button id="open-scan-btn" type="button" class="btn btn-primary btn-scan" title="Scan meal photo">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
             <circle cx="12" cy="13" r="3" />
           </svg>
-          <span>Scan Photo</span>
+          <span>Scan</span>
         </button>
 
         <button id="theme-toggle-btn" type="button" class="btn btn-ghost btn-icon" aria-label="Switch color theme" title="Switch color theme">
@@ -153,11 +153,11 @@
         <div class="quick-actions-row">
           <button id="quick-add-food-btn" type="button" class="quick-action-btn">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14" /></svg>
-            <span>Log USDA Food</span>
+            <span>Log food</span>
           </button>
           <button id="quick-scan-btn" type="button" class="quick-action-btn quick-action-accent">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" /><circle cx="12" cy="13" r="3" /></svg>
-            <span>SigLIP Photo Scan</span>
+            <span>Scan</span>
           </button>
           <button id="copy-yesterday-btn" type="button" class="quick-action-btn" title="Copy all logged meals from the previous day">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
@@ -631,9 +631,8 @@
         <div class="form-field">
           <label class="field-label">Appearance Theme</label>
           <div class="theme-picker-row">
-            <button type="button" class="theme-option-btn" data-set-theme="blush">Blush Light</button>
-            <button type="button" class="theme-option-btn" data-set-theme="dark">AMOLED Dark</button>
-            <button type="button" class="theme-option-btn" data-set-theme="paper">Warm Paper</button>
+            <button type="button" class="theme-option-btn" data-set-theme="light">White &amp; Brown</button>
+            <button type="button" class="theme-option-btn" data-set-theme="dark">Dark Brown</button>
           </div>
         </div>
 
