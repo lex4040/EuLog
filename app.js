@@ -223,7 +223,7 @@
 
       const rowsHtml =
         mealEntries.length === 0
-          ? '<p class="meal-empty">Tap + to log from 153 USDA foods</p>'
+          ? `<p class="meal-empty">Tap + to log from ${USDA_FOODS.length} USDA foods</p>`
           : `<div class="meal-entries">${mealEntries
               .map((entry) => {
                 const food = entry.snapshot || findFoodById(entry.foodId);
@@ -670,6 +670,7 @@
   function closeModal(id) {
     const el = $(id);
     if (!el) return;
+    if (id === 'scan-modal') stopLiveCamera();
     el.hidden = true;
     const anyOpen = [...document.querySelectorAll('.modal-backdrop')].some((m) => !m.hidden);
     if (!anyOpen) document.body.style.overflow = '';
@@ -724,40 +725,87 @@
   }
 
   /* ==================== ON-DEVICE SIGLIP PHOTO SCAN MODAL ==================== */
+  let liveCameraStream = null;
+
+  function stopLiveCamera() {
+    if (liveCameraStream) {
+      for (const track of liveCameraStream.getTracks()) track.stop();
+      liveCameraStream = null;
+    }
+    const video = $('scan-live-video');
+    if (video) {
+      video.srcObject = null;
+      video.hidden = true;
+    }
+    const liveCtrl = $('scan-live-controls');
+    const pickCtrl = $('scan-picker-controls');
+    if (liveCtrl) liveCtrl.hidden = true;
+    if (pickCtrl) pickCtrl.hidden = false;
+  }
+
+  async function startLiveCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showToast('Live camera not available — tap Choose Photo instead');
+      $('scan-gallery-input')?.click();
+      return;
+    }
+    try {
+      stopLiveCamera();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+        },
+        audio: false,
+      });
+      liveCameraStream = stream;
+      const video = $('scan-live-video');
+      video.srcObject = stream;
+      video.hidden = false;
+      $('scan-preview-img').hidden = true;
+      $('scan-empty-prompt').hidden = true;
+      $('scan-picker-controls').hidden = true;
+      $('scan-live-controls').hidden = false;
+      await video.play().catch(() => {});
+    } catch (err) {
+      console.warn('Live camera permission/open failed:', err);
+      showToast('Camera blocked — tap Choose Photo to pick a picture');
+    }
+  }
+
   function openScanModal() {
     $('scan-meal-select').value = pendingMealTarget || guessDefaultMeal();
     const st = window.EuLogVision.getStatus();
     $('siglip-status-badge').textContent =
-      st.status === 'ready' ? `SigLIP Ready (${st.device.toUpperCase()})` : 'SigLIP On-Device AI';
+      st.status === 'ready' ? `SigLIP Vision Ready (${st.device.toUpperCase()})` : 'SigLIP Vision (q4 · 260 Foods)';
     openModal('scan-modal');
   }
 
-  function handlePhotoFile(file) {
-    if (!file || !file.type.startsWith('image/')) {
-      showToast('Please select a valid image file');
-      return;
-    }
+  async function analyzePhotoSource(source) {
+    const progWrap = $('scan-progress-wrap');
+    const progBar = $('scan-progress-bar');
+    const progText = $('scan-progress-text');
+    const progPct = $('scan-progress-pct');
+    progWrap.hidden = false;
+    progBar.style.width = '5%';
+    progText.textContent = 'Preparing compact photo frame…';
+    progPct.textContent = '5%';
+    $('scan-results-section').hidden = true;
 
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const dataUrl = ev.target.result;
-      const preview = $('scan-preview-img');
-      preview.src = dataUrl;
-      preview.hidden = false;
-      $('scan-empty-prompt').hidden = true;
-
-      const progWrap = $('scan-progress-wrap');
-      const progBar = $('scan-progress-bar');
-      const progText = $('scan-progress-text');
-      const progPct = $('scan-progress-pct');
-      progWrap.hidden = false;
-      $('scan-results-section').hidden = true;
-
-      const output = await window.EuLogVision.recognizeFoodPhoto(dataUrl, USDA_FOODS, ({ pct, text }) => {
+    try {
+      const output = await window.EuLogVision.recognizeFoodPhoto(source, USDA_FOODS, ({ pct, text }) => {
         progBar.style.width = `${pct}%`;
         progText.textContent = text;
         progPct.textContent = `${pct}%`;
       });
+
+      if (output.previewUrl) {
+        const preview = $('scan-preview-img');
+        preview.src = output.previewUrl;
+        preview.hidden = false;
+        $('scan-empty-prompt').hidden = true;
+      }
 
       $('siglip-status-badge').textContent =
         output.engine === 'siglip'
@@ -766,8 +814,8 @@
 
       $('scan-engine-note').textContent =
         output.engine === 'siglip'
-          ? 'Zero-shot SigLIP sigmoid scores'
-          : 'Connect once to cache SigLIP ONNX weights';
+          ? `Matched across all ${output.totalFoods || USDA_FOODS.length} USDA foods`
+          : 'Connect once to cache 60 MB SigLIP Vision weights';
 
       const maxScore = Math.max(1e-9, ...output.results.map((r) => r.score));
       $('scan-results-list').innerHTML = output.results
@@ -775,18 +823,14 @@
           const relPct = Math.max(18, Math.min(100, Math.round((score / maxScore) * 100)));
           const dispPct =
             output.engine === 'siglip'
-              ? score >= 0.01
-                ? `${(score * 100).toFixed(1)}% match`
-                : idx === 0
-                  ? 'Top match'
-                  : `${relPct}% rel.`
+              ? `${Math.round(score * 100)}% match`
               : `${Math.round(score * 100)}% visual`;
           return `
             <div class="scan-result-row">
               <div class="scan-result-info">
                 <div class="scan-result-top">
                   <strong>${escapeHtml(food.name)}</strong>
-                  <span class="entry-meta">${dispPct} · ${Math.round(food.calories)} kcal</span>
+                  <span class="entry-meta">${idx === 0 ? '★ ' : ''}${dispPct} · ${Math.round(food.calories)} kcal</span>
                 </div>
                 <span class="entry-meta">${escapeHtml(food.serving)} · ${food.protein}g P · ${food.carbs}g C · ${food.fat}g F</span>
                 <div class="scan-conf-bar"><div class="scan-conf-fill" style="width:${relPct}%"></div></div>
@@ -798,8 +842,21 @@
         .join('');
 
       $('scan-results-section').hidden = false;
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Photo scan failed:', err);
+      progText.textContent = 'Could not read that photo — try Live Camera or another image';
+      progPct.textContent = '';
+      showToast('Could not read photo — please try again');
+    }
+  }
+
+  function handlePhotoFile(file) {
+    if (!file || (file.type && !file.type.startsWith('image/'))) {
+      showToast('Please select a valid image file');
+      return;
+    }
+    stopLiveCamera();
+    analyzePhotoSource(file);
   }
 
   /* ==================== CUSTOM SUPPLEMENT MODAL ==================== */
@@ -1034,10 +1091,16 @@
       closeModal('food-log-modal');
     });
 
-    // SigLIP photo scan inputs & drag/drop
-    $('scan-camera-input').addEventListener('change', (e) => {
-      if (e.target.files?.[0]) handlePhotoFile(e.target.files[0]);
-      e.target.value = '';
+    // SigLIP photo scan inputs, in-app live camera & drag/drop
+    $('scan-open-cam-btn').addEventListener('click', startLiveCamera);
+    $('scan-stop-cam-btn').addEventListener('click', () => {
+      stopLiveCamera();
+      if (!$('scan-preview-img').src) $('scan-empty-prompt').hidden = false;
+    });
+    $('scan-capture-btn').addEventListener('click', () => {
+      const video = $('scan-live-video');
+      if (!video || video.hidden) return;
+      analyzePhotoSource(video).finally(() => stopLiveCamera());
     });
     $('scan-gallery-input').addEventListener('change', (e) => {
       if (e.target.files?.[0]) handlePhotoFile(e.target.files[0]);

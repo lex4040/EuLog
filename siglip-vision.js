@@ -1,149 +1,230 @@
 /* ==========================================================================
-   EuLog — On-Device SigLIP Food Photo Recognition Engine
-   Uses Transformers.js v3 + Xenova/siglip-base-patch16-224 (quantized ONNX)
-   running 100% locally in the browser (WebGPU with automatic WASM fallback).
-   Uses a fast 2-stage hierarchical SigLIP pass:
-     Stage 1: Scores all 10 USDA food categories in one lightweight call.
-     Stage 2: Scores all USDA foods inside the top 3 matching categories.
-   This keeps accuracy high across all 153 USDA foods while cutting on-device
-   CPU/mobile inference latency by ~5x. Includes an offline visual fallback.
+   EuLog — On-Device SigLIP Food Photo Recognition Engine (v2 Mobile-Safe)
+   1. Hardware-downscales phone camera photos (even 50MP/200MP) to <= 256px
+      using createImageBitmap BEFORE decoding pixels (prevents mobile OOM!).
+   2. Runs ONLY the lightweight ~60 MB SiglipVisionModel (q4) inside a
+      dedicated Web Worker (siglip-worker.js) — never freezes or reloads tab!
+   3. Matches the 768-dim image embedding against precomputed SigLIP text
+      embeddings for ALL 260 USDA foods in <1 ms via cosine similarity.
+   4. Gracefully falls back to offline visual matching if offline before cache.
    ========================================================================== */
 
 (function (global) {
   'use strict';
 
   const MODEL_ID = 'Xenova/siglip-base-patch16-224';
-  const TRANSFORMERS_CDN = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.5.2';
 
-  const CATEGORY_PROMPTS = [
-    { category: 'Fruits', prompt: 'fresh fruit berries banana apple citrus melon or avocado' },
-    { category: 'Vegetables', prompt: 'fresh vegetables leafy greens salad broccoli sweet potato or veggies' },
-    { category: 'Meat & Eggs', prompt: 'cooked chicken breast steak beef turkey pork bacon or eggs' },
-    { category: 'Seafood', prompt: 'cooked salmon fish fillet tuna shrimp oysters or seafood' },
-    { category: 'Dairy & Alt', prompt: 'yogurt bowl milk cheese cottage cheese butter or kefir' },
-    { category: 'Grains & Breads', prompt: 'oatmeal rice quinoa bread toast bagel pasta tortilla or granola' },
-    { category: 'Legumes & Plant', prompt: 'tofu tempeh cooked beans chickpeas lentils or hummus' },
-    { category: 'Nuts & Seeds', prompt: 'almonds walnuts nuts peanut butter chia seeds or pumpkin seeds' },
-    { category: 'Oils & Extras', prompt: 'olive oil honey syrup dark chocolate guacamole salsa or pesto' },
-    { category: 'Meals & Drinks', prompt: 'prepared meal bowl salad avocado toast sushi pizza smoothie or latte' },
-  ];
-
-  let classifierPromise = null;
-  let loadedClassifier = null;
+  let worker = null;
+  let workerSeq = 0;
   let activeDevice = 'wasm';
   let modelStatus = 'idle'; // 'idle' | 'loading' | 'ready' | 'fallback'
+  let decodedEmbCache = null;
 
-  async function detectDevice() {
-    try {
-      if (typeof navigator !== 'undefined' && navigator.gpu) {
-        const adapter = await navigator.gpu.requestAdapter();
-        if (adapter) return 'webgpu';
-      }
-    } catch {
-      // Ignore WebGPU probe failures and fall back to WASM
+  const pendingJobs = new Map();
+
+  function getDecodedEmbeddings() {
+    if (decodedEmbCache) return decodedEmbCache;
+    const raw = global.EuLogSiglipEmbeddings;
+    if (!raw || !raw.vectorsB64 || !raw.ids) return null;
+
+    const bin = atob(raw.vectorsB64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i += 1) {
+      bytes[i] = bin.charCodeAt(i);
     }
-    return 'wasm';
+    const int8 = new Int8Array(bytes.buffer);
+    decodedEmbCache = {
+      dim: raw.dim,
+      ids: raw.ids,
+      scales: raw.scales,
+      int8,
+    };
+    return decodedEmbCache;
   }
 
-  async function ensureModelLoaded(onProgress) {
-    if (loadedClassifier) {
-      modelStatus = 'ready';
-      return loadedClassifier;
+  function ensureWorker(onProgress) {
+    if (worker) {
+      worker._onProgress = onProgress;
+      return worker;
     }
-    if (classifierPromise) return classifierPromise;
+    if (typeof Worker === 'undefined') {
+      throw new Error('Web Workers unavailable');
+    }
 
-    modelStatus = 'loading';
-    onProgress?.({ stage: 'init', pct: 5, text: 'Initializing on-device SigLIP runtime…' });
+    const w = new Worker('./siglip-worker.js', { type: 'module' });
+    w._onProgress = onProgress;
 
-    classifierPromise = (async () => {
-      const importWithTimeout = (url, ms = 12000) =>
-        Promise.race([
-          import(url),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('SigLIP runtime CDN timed out')), ms)
-          ),
-        ]);
-
-      const transformers = await importWithTimeout(TRANSFORMERS_CDN, 12000);
-      const { pipeline, env } = transformers;
-
-      env.allowLocalModels = false;
-      env.useBrowserCache = true;
-
-      const preferredDevice = await detectDevice();
-      activeDevice = preferredDevice;
-
-      const fileProgress = Object.create(null);
-      const progressCallback = (info) => {
-        if (!info) return;
-        if (info.status === 'progress' && info.file) {
-          fileProgress[info.file] = typeof info.progress === 'number' ? info.progress : 0;
-          const vals = Object.values(fileProgress);
-          const avg = vals.reduce((a, b) => a + b, 0) / Math.max(1, vals.length);
-          const pct = Math.min(82, Math.max(8, Math.round(avg * 0.8)));
-          onProgress?.({
-            stage: 'download',
-            pct,
-            text: `Downloading SigLIP (${activeDevice.toUpperCase()})… ${Math.round(avg)}%`,
-          });
-        } else if (info.status === 'ready') {
-          onProgress?.({ stage: 'ready', pct: 85, text: 'SigLIP model ready on device' });
-        }
-      };
-
-      try {
-        loadedClassifier = await pipeline('zero-shot-image-classification', MODEL_ID, {
-          device: preferredDevice,
-          dtype: 'q8',
-          progress_callback: progressCallback,
-        });
-      } catch (gpuErr) {
-        if (preferredDevice === 'webgpu') {
-          activeDevice = 'wasm';
-          onProgress?.({ stage: 'init', pct: 10, text: 'Switching SigLIP to WASM backend…' });
-          loadedClassifier = await pipeline('zero-shot-image-classification', MODEL_ID, {
-            device: 'wasm',
-            dtype: 'q8',
-            progress_callback: progressCallback,
-          });
-        } else {
-          throw gpuErr;
-        }
+    w.onmessage = (event) => {
+      const msg = event.data || {};
+      if (msg.type === 'progress') {
+        if (msg.stage === 'ready') modelStatus = 'ready';
+        w._onProgress?.(msg);
+        return;
       }
+      const job = pendingJobs.get(msg.id);
+      if (!job) return;
+      pendingJobs.delete(msg.id);
+      if (msg.type === 'error') {
+        job.reject(new Error(msg.message || 'SigLIP worker error'));
+      } else {
+        if (msg.device) activeDevice = msg.device;
+        modelStatus = 'ready';
+        job.resolve(msg);
+      }
+    };
 
-      modelStatus = 'ready';
-      return loadedClassifier;
-    })();
-
-    try {
-      return await classifierPromise;
-    } catch (err) {
-      classifierPromise = null;
+    w.onerror = (err) => {
+      const errorObj = new Error(err?.message || 'SigLIP worker failed to start');
+      for (const [, job] of pendingJobs) job.reject(errorObj);
+      pendingJobs.clear();
+      worker = null;
       modelStatus = 'fallback';
-      throw err;
-    }
+    };
+
+    worker = w;
+    return w;
   }
 
-  function resizeImageDataUrl(dataUrl, maxSide = 320) {
+  function postWorkerJob(payload, transfer, onProgress) {
+    const w = ensureWorker(onProgress);
+    const id = ++workerSeq;
     return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
-        const w = Math.max(1, Math.round(img.width * scale));
-        const h = Math.max(1, Math.round(img.height * scale));
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, w, h);
-        resolve({ dataUrl: canvas.toDataURL('image/jpeg', 0.88), canvas, width: w, height: h });
-      };
-      img.onerror = () => reject(new Error('Could not decode photo'));
-      img.src = dataUrl;
+      pendingJobs.set(id, { resolve, reject });
+      w.postMessage({ ...payload, id }, transfer || []);
     });
   }
 
-  function analyzeOfflineVisualHints(canvas, foods, topK = 6) {
+  async function ensureModelLoaded(onProgress) {
+    modelStatus = 'loading';
+    const res = await postWorkerJob({ type: 'preload' }, [], onProgress);
+    activeDevice = res.device || activeDevice;
+    modelStatus = 'ready';
+    return res;
+  }
+
+  /**
+   * Memory-safe downscale from File/Blob OR HTMLVideoElement/HTMLCanvasElement
+   * straight to a compact <= 256px canvas + tiny JPEG preview data URL.
+   * Avoids reading huge 50MP/200MP camera images into base64 strings!
+   */
+  async function prepareCompactFrame(source, maxSide = 256) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    if (source instanceof HTMLVideoElement) {
+      const vw = source.videoWidth || 640;
+      const vh = source.videoHeight || 480;
+      const scale = Math.min(1, maxSide / Math.max(vw, vh));
+      canvas.width = Math.max(1, Math.round(vw * scale));
+      canvas.height = Math.max(1, Math.round(vh * scale));
+      ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+    } else if (source instanceof Blob) {
+      let bitmap = null;
+      try {
+        if (typeof createImageBitmap === 'function') {
+          try {
+            // Native hardware resize before full bitmap allocation (critical for Galaxy S25 200MP / iPhone HEIC)
+            bitmap = await createImageBitmap(source, {
+              resizeWidth: maxSide,
+              resizeQuality: 'medium',
+            });
+          } catch {
+            bitmap = await createImageBitmap(source);
+          }
+          const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+          canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+          canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+          ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        }
+      } finally {
+        if (bitmap && typeof bitmap.close === 'function') bitmap.close();
+      }
+
+      if (canvas.width === 0 || canvas.height === 0) {
+        const objUrl = URL.createObjectURL(source);
+        try {
+          await new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => {
+              const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+              canvas.width = Math.max(1, Math.round(img.width * scale));
+              canvas.height = Math.max(1, Math.round(img.height * scale));
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              resolve();
+            };
+            img.onerror = () => reject(new Error('Could not decode photo'));
+            img.src = objUrl;
+          });
+        } finally {
+          URL.revokeObjectURL(objUrl);
+        }
+      }
+    } else if (typeof source === 'string') {
+      await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+          canvas.width = Math.max(1, Math.round(img.width * scale));
+          canvas.height = Math.max(1, Math.round(img.height * scale));
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve();
+        };
+        img.onerror = () => reject(new Error('Could not decode image URL'));
+        img.src = source;
+      });
+    } else {
+      throw new Error('Unsupported photo source');
+    }
+
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const previewUrl = canvas.toDataURL('image/jpeg', 0.85);
+    return { canvas, imageData, previewUrl, width: canvas.width, height: canvas.height };
+  }
+
+  function scoreAgainstPrecomputedEmbeddings(imageVec, foods) {
+    const emb = getDecodedEmbeddings();
+    if (!emb || emb.dim !== imageVec.length) return null;
+
+    const byId = Object.create(null);
+    for (const f of foods) byId[f.id] = f;
+
+    const { dim, ids, scales, int8 } = emb;
+    const rawDots = [];
+
+    for (let i = 0; i < ids.length; i += 1) {
+      const food = byId[ids[i]];
+      if (!food) continue;
+      const base = i * dim;
+      const scale = scales[i];
+      let dot = 0;
+      for (let d = 0; d < dim; d += 1) {
+        dot += imageVec[d] * (int8[base + d] * scale);
+      }
+      rawDots.push({ food, dot });
+    }
+
+    rawDots.sort((a, b) => b.dot - a.dot);
+
+    // Calibrated temperature softmax over top 12 candidates for intuitive display confidence
+    // while preserving exact SigLIP cosine ranking across all 260 foods.
+    const top12 = rawDots.slice(0, 12);
+    const maxDot = top12[0]?.dot ?? 0;
+    const temp = 28; // SigLIP cosine margin sharpening
+    let sumExp = 0;
+    const exps = top12.map((item) => {
+      const e = Math.exp((item.dot - maxDot) * temp);
+      sumExp += e;
+      return e;
+    });
+
+    return top12.slice(0, 8).map((item, idx) => ({
+      food: item.food,
+      score: exps[idx] / Math.max(1e-9, sumExp),
+      cosine: item.dot,
+    }));
+  }
+
+  function analyzeOfflineVisualHints(canvas, foods, topK = 8) {
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     const { width, height } = canvas;
     const sx = Math.floor(width * 0.15);
@@ -208,91 +289,74 @@
     const norm = Math.max(1, total);
     const ranked = foods.map((food) => {
       const ratio = (buckets[food.colorHint] || 0) / norm;
-      const everydayBoost =
-        ['Meals & Drinks', 'Fruits', 'Vegetables', 'Meat & Eggs', 'Seafood'].includes(food.category)
-          ? 0.08
-          : 0.02;
-      const score = Math.min(0.89, Math.max(0.08, ratio * 1.45 + everydayBoost));
-      return { food, score };
+      const everydayBoost = ['Meals & Drinks', 'Fruits', 'Vegetables', 'Meat & Eggs', 'Seafood'].includes(
+        food.category
+      )
+        ? 0.08
+        : 0.02;
+      return { food, score: Math.min(0.89, Math.max(0.08, ratio * 1.45 + everydayBoost)) };
     });
 
     ranked.sort((a, b) => b.score - a.score);
     return ranked.slice(0, topK);
   }
 
-  async function recognizeFoodPhoto(imageDataUrl, foods, onProgress) {
+  /**
+   * Recognize foods from a File/Blob, live <video>, or data URL against ALL 260 USDA foods.
+   */
+  async function recognizeFoodPhoto(source, foods, onProgress) {
     const start = performance.now();
     const list = foods && foods.length ? foods : (global.EuLogFoods?.USDA_FOODS || []);
-    const { dataUrl: resizedUrl, canvas } = await resizeImageDataUrl(imageDataUrl, 320);
+
+    onProgress?.({ stage: 'prep', pct: 4, text: 'Preparing compact photo frame…' });
+    const frame = await prepareCompactFrame(source, 256);
 
     try {
-      const classifier = await ensureModelLoaded(onProgress);
-
-      // Stage 1: Identify top 2-3 USDA food categories (only 10 prompts => super fast!)
-      onProgress?.({ stage: 'infer', pct: 88, text: 'Stage 1/2: Identifying food categories with SigLIP…' });
-      const catPromptToName = new Map(CATEGORY_PROMPTS.map((c) => [c.prompt, c.category]));
-      const catPreds = await classifier(
-        resizedUrl,
-        CATEGORY_PROMPTS.map((c) => c.prompt),
-        { hypothesis_template: 'a photo of {}' }
+      const rgbaCopy = new Uint8ClampedArray(frame.imageData.data);
+      const res = await postWorkerJob(
+        { type: 'embed', rgba: rgbaCopy.buffer, width: frame.width, height: frame.height },
+        [rgbaCopy.buffer],
+        onProgress
       );
 
-      const topCategories = new Set(
-        (catPreds || []).slice(0, 3).map((p) => catPromptToName.get(p.label)).filter(Boolean)
-      );
-
-      const candidates = list.filter((f) => topCategories.has(f.category));
-      const pool = candidates.length >= 10 ? candidates : list.slice(0, 40);
-
-      // Stage 2: Score every USDA food inside the top matching categories
       onProgress?.({
-        stage: 'infer',
-        pct: 94,
-        text: `Stage 2/2: Ranking ${pool.length} candidate USDA foods…`,
+        stage: 'rank',
+        pct: 97,
+        text: `Matching against all ${list.length} USDA foods…`,
       });
 
-      const promptToFood = new Map();
-      const prompts = [];
-      for (const food of pool) {
-        const prompt = food.prompt || food.name.toLowerCase();
-        promptToFood.set(prompt, food);
-        prompts.push(prompt);
+      const imageVec = new Float32Array(res.embedding);
+      const ranked = scoreAgainstPrecomputedEmbeddings(imageVec, list);
+      if (!ranked || ranked.length === 0) {
+        throw new Error('Precomputed SigLIP embeddings not loaded');
       }
 
-      const foodPreds = await classifier(resizedUrl, prompts, {
-        hypothesis_template: 'a close-up food photo of {}',
-      });
-
-      const scored = [];
-      for (const p of foodPreds || []) {
-        const food = promptToFood.get(p.label);
-        if (food) scored.push({ food, score: p.score });
-      }
-      scored.sort((a, b) => b.score - a.score);
-
-      onProgress?.({ stage: 'done', pct: 100, text: 'On-device SigLIP analysis complete' });
+      onProgress?.({ stage: 'done', pct: 100, text: `Matched across all ${list.length} USDA foods` });
 
       return {
         engine: 'siglip',
         modelId: MODEL_ID,
-        device: activeDevice,
-        candidateCount: pool.length,
+        device: res.device || activeDevice,
+        previewUrl: frame.previewUrl,
+        totalFoods: list.length,
         elapsedMs: Math.round(performance.now() - start),
-        results: scored.slice(0, 6),
+        results: ranked,
       };
     } catch (err) {
-      console.warn('SigLIP on-device inference unavailable, using offline fallback:', err);
-      const fallbackResults = analyzeOfflineVisualHints(canvas, list, 6);
+      console.warn('SigLIP vision worker unavailable, using offline fallback:', err);
+      const fallbackResults = analyzeOfflineVisualHints(frame.canvas, list, 8);
       onProgress?.({
         stage: 'fallback',
         pct: 100,
-        text: 'Offline visual quick-match used (connect once to cache SigLIP weights)',
+        text: 'Offline visual quick-match used (connect once to cache SigLIP Vision)',
       });
       return {
         engine: 'offline-fallback',
         modelId: MODEL_ID,
         device: 'canvas',
-        error: err?.message || 'Network unavailable for first-time model download',
+        previewUrl: frame.previewUrl,
+        totalFoods: list.length,
+        error: err?.message || 'Could not load SigLIP Vision model',
         elapsedMs: Math.round(performance.now() - start),
         results: fallbackResults,
       };
@@ -309,6 +373,7 @@
 
   global.EuLogVision = {
     MODEL_ID,
+    prepareCompactFrame,
     ensureModelLoaded,
     recognizeFoodPhoto,
     getStatus,

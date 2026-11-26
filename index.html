@@ -42,7 +42,7 @@
         <button type="button" class="nav-tab is-active" data-tab="today">Today</button>
         <button type="button" class="nav-tab" data-tab="supplements">Supplements</button>
         <button type="button" class="nav-tab" data-tab="weekly">Weekly Vitals</button>
-        <button type="button" class="nav-tab" data-tab="foods">153 USDA Foods</button>
+        <button type="button" class="nav-tab" data-tab="foods">260 USDA Foods</button>
       </nav>
 
       <div class="top-actions">
@@ -325,7 +325,7 @@
         <div class="panel-header-row">
           <div>
             <h2 class="panel-title">USDA Food Library</h2>
-            <p id="foods-count-subtitle" class="panel-subtitle">153 curated USDA FoodData Central foods with full micronutrient profiles</p>
+            <p id="foods-count-subtitle" class="panel-subtitle">260 curated USDA FoodData Central foods with full micronutrient profiles</p>
           </div>
           <button id="open-custom-food-btn" type="button" class="btn btn-primary btn-sm">+ Custom Food</button>
         </div>
@@ -334,7 +334,7 @@
           <div class="search-sort-row">
             <div class="search-input-wrap">
               <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
-              <input id="foods-search-input" type="search" class="text-input search-input" placeholder="Search 153 USDA foods (e.g., salmon, spinach, avocado)..." autocomplete="off" />
+              <input id="foods-search-input" type="search" class="text-input search-input" placeholder="Search 260 USDA foods (e.g., salmon, ramen, burger, avocado)..." autocomplete="off" />
             </div>
 
             <select id="foods-sort-select" class="select-input" aria-label="Sort foods">
@@ -457,21 +457,23 @@
           <span id="siglip-status-badge" class="status-chip">SigLIP Ready on Demand</span>
         </div>
 
-        <!-- Upload / Camera Dropzone -->
+        <!-- Upload / In-App Live Camera Dropzone -->
         <div id="scan-dropzone" class="scan-dropzone">
+          <video id="scan-live-video" class="scan-live-video" playsinline autoplay muted hidden></video>
           <img id="scan-preview-img" class="scan-preview-img" alt="Meal photo preview" hidden />
           <div id="scan-empty-prompt" class="scan-empty-prompt">
             <div class="scan-camera-badge">
               <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" /><circle cx="12" cy="13" r="3" /></svg>
             </div>
             <p class="scan-drop-title">Snap or upload a meal photo</p>
-            <p class="scan-drop-sub">Runs <strong>Xenova/siglip-base-patch16-224</strong> locally in your browser against all 153 USDA foods. Photos never leave your device.</p>
+            <p class="scan-drop-sub">Runs lightweight <strong>SigLIP Vision (q4, ~60 MB)</strong> in a background worker against all <strong>260 USDA foods</strong>. Photos stay 100% on your device.</p>
           </div>
-          <div class="scan-input-buttons">
-            <label class="btn btn-primary btn-sm file-trigger-btn">
-              <input id="scan-camera-input" type="file" accept="image/*" capture="environment" hidden />
-              Take Photo
-            </label>
+          <div id="scan-live-controls" class="scan-input-buttons" hidden>
+            <button id="scan-capture-btn" type="button" class="btn btn-primary btn-sm">Capture &amp; Scan</button>
+            <button id="scan-stop-cam-btn" type="button" class="btn btn-ghost btn-sm">Cancel Camera</button>
+          </div>
+          <div id="scan-picker-controls" class="scan-input-buttons">
+            <button id="scan-open-cam-btn" type="button" class="btn btn-primary btn-sm">Live Camera</button>
             <label class="btn btn-soft btn-sm file-trigger-btn">
               <input id="scan-gallery-input" type="file" accept="image/*" hidden />
               Choose Photo
@@ -491,7 +493,7 @@
         <!-- Predictions List -->
         <div id="scan-results-section" hidden>
           <div class="section-head-row">
-            <h4 id="scan-results-heading" class="mini-section-title">Top Matches from 153 USDA Foods</h4>
+            <h4 id="scan-results-heading" class="mini-section-title">Top Matches from 260 USDA Foods</h4>
             <span id="scan-engine-note" class="section-subtitle"></span>
           </div>
           <div id="scan-results-list" class="scan-results-list"></div>
@@ -499,7 +501,7 @@
       </div>
 
       <div class="modal-foot">
-        <button id="scan-manual-fallback-btn" type="button" class="btn btn-ghost">Browse 153 Foods</button>
+        <button id="scan-manual-fallback-btn" type="button" class="btn btn-ghost">Browse 260 Foods</button>
         <button type="button" class="btn btn-primary" data-close-modal="scan-modal">Done</button>
       </div>
     </div>
@@ -695,6 +697,7 @@
   <script src="./nutrients.js"></script>
   <script src="./supplements.js"></script>
   <script src="./storage.js"></script>
+  <script src="./siglip-embeddings.js"></script>
   <script src="./siglip-vision.js"></script>
   <script src="./app.js"></script>
 </body>

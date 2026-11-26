@@ -4,7 +4,7 @@
    updates arrive promptly while remaining 100% usable offline.
    ========================================================================== */
 
-const CACHE_NAME = 'eulog-offline-v1';
+const CACHE_NAME = 'eulog-offline-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -13,7 +13,9 @@ const ASSETS = [
   './nutrients.js',
   './supplements.js',
   './storage.js',
+  './siglip-embeddings.js',
   './siglip-vision.js',
+  './siglip-worker.js',
   './app.js',
   './manifest.json',
   './icon.svg',
