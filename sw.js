@@ -7,7 +7,7 @@
      use or Preload.
    ========================================================================== */
 
-const APP_CACHE = 'eulog-offline-v19';
+const APP_CACHE = 'eulog-offline-v20';
 const AI_CACHE = 'eulog-ai-cache-v1';
 
 const APP_ASSETS = [
@@ -21,6 +21,7 @@ const APP_ASSETS = [
   './nutrients.js',
   './supplements.js',
   './storage.js',
+  './barcode-scanner.js',
   './siglip-embeddings.js',
   './siglip-vision.js',
   './siglip-worker.js',

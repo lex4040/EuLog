@@ -1415,62 +1415,146 @@
     const video = $('barcode-live-video');
     if (video) {
       video.srcObject = null;
-      video.hidden = true;
     }
+    if ($('barcode-viewport')) $('barcode-viewport').hidden = true;
     if ($('barcode-empty-prompt')) $('barcode-empty-prompt').hidden = false;
     if ($('barcode-start-cam-btn')) $('barcode-start-cam-btn').hidden = false;
+    if ($('barcode-photo-label')) $('barcode-photo-label').hidden = false;
     if ($('barcode-stop-cam-btn')) $('barcode-stop-cam-btn').hidden = true;
   }
 
   async function startBarcodeCamera() {
-    if (!('BarcodeDetector' in window)) {
-      if ($('barcode-status-note')) {
-        $('barcode-status-note').innerHTML =
-          'Live camera barcode detection is not built into this browser — type or paste the <strong>EAN-13 barcode</strong> below instead.';
-      }
-      $('barcode-manual-input')?.focus();
-      showToast('Type the EAN-13 number below to look it up');
-      return;
-    }
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      showToast('Camera unavailable — enter the EAN-13 barcode below');
+      showToast('Live camera unavailable — use Scan Barcode Photo or type the EAN-13 below');
       return;
     }
     try {
       stopBarcodeCamera();
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } },
-        audio: false,
-      });
+      let stream = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: false,
+        });
+      } catch {
+        // Fallback for older devices rejecting ideal resolution constraints
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' },
+          audio: false,
+        });
+      }
+
       barcodeCameraStream = stream;
       const video = $('barcode-live-video');
       video.srcObject = stream;
-      video.hidden = false;
+      if ($('barcode-viewport')) $('barcode-viewport').hidden = false;
       $('barcode-empty-prompt').hidden = true;
       $('barcode-start-cam-btn').hidden = true;
+      if ($('barcode-photo-label')) $('barcode-photo-label').hidden = true;
       $('barcode-stop-cam-btn').hidden = false;
       await video.play().catch(() => {});
 
-      const detector = new window.BarcodeDetector({
-        formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'],
-      });
+      const nativeDetector =
+        'BarcodeDetector' in window
+          ? new window.BarcodeDetector({
+              formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'],
+            })
+          : null;
+      const jsScanner = window.EuLogBarcode || null;
+
+      let scanning = false;
+      let lastCandidate = '';
+      let candidateStreak = 0;
+
+      const onDecoded = (rawCode) => {
+        const code = String(rawCode || '').replace(/[^\d]/g, '').trim();
+        if (code.length < 6) return;
+        stopBarcodeCamera();
+        if (navigator.vibrate) navigator.vibrate(40);
+        if ($('barcode-manual-input')) $('barcode-manual-input').value = code;
+        lookupBarcode(code);
+      };
+
       barcodeScanTimer = setInterval(async () => {
-        if (!video || video.readyState < 2) return;
+        if (scanning || !video || video.readyState < 2) return;
+        scanning = true;
         try {
-          const hits = await detector.detect(video);
-          if (hits && hits.length > 0 && hits[0].rawValue) {
-            const code = String(hits[0].rawValue).trim();
-            stopBarcodeCamera();
-            $('barcode-manual-input').value = code;
-            lookupBarcode(code);
+          // 1. Native BarcodeDetector fast-path (Chrome/Android/Edge)
+          if (nativeDetector) {
+            try {
+              const hits = await nativeDetector.detect(video);
+              if (hits && hits.length > 0 && hits[0].rawValue) {
+                onDecoded(hits[0].rawValue);
+                return;
+              }
+            } catch {
+              // fall through to built-in cross-browser JS decoder
+            }
           }
-        } catch {
-          // ignore frame decode error
+
+          // 2. Built-in pure-JS EAN-13 / EAN-8 / UPC-A scanner (iOS Safari, Firefox & fallback)
+          if (jsScanner) {
+            const hit = jsScanner.decodeFromVideo(video);
+            if (hit && hit.code) {
+              if (hit.confidence >= 3) {
+                onDecoded(hit.code);
+                return;
+              }
+              if (hit.code === lastCandidate) {
+                candidateStreak += 1;
+              } else {
+                lastCandidate = hit.code;
+                candidateStreak = 1;
+              }
+              if (candidateStreak >= 2) {
+                onDecoded(hit.code);
+                return;
+              }
+            }
+          }
+        } finally {
+          scanning = false;
         }
-      }, 350);
-    } catch {
+      }, 180);
+    } catch (err) {
+      console.warn('Barcode camera failed:', err);
       stopBarcodeCamera();
-      showToast('Camera blocked — enter the barcode number below');
+      showToast('Camera permission blocked — try Scan Barcode Photo or enter the number below');
+    }
+  }
+
+  async function handleBarcodePhotoFile(file) {
+    if (!file || (file.type && !file.type.startsWith('image/'))) {
+      showToast('Please choose a barcode photo');
+      return;
+    }
+    const card = $('barcode-result-card');
+    if (card) {
+      card.hidden = false;
+      card.innerHTML = '<p class="section-subtitle" style="margin:0;">Scanning barcode from photo…</p>';
+    }
+    try {
+      const hit = window.EuLogBarcode ? await window.EuLogBarcode.decodeFromFile(file) : null;
+      if (hit && hit.code) {
+        if ($('barcode-manual-input')) $('barcode-manual-input').value = hit.code;
+        if (navigator.vibrate) navigator.vibrate(40);
+        showToast(`Detected barcode ${hit.code}`);
+        await lookupBarcode(hit.code);
+      } else {
+        if (card) {
+          card.innerHTML =
+            '<p class="section-subtitle" style="margin:0;">Could not read the barcode lines from that photo. Hold the barcode flat in good lighting (or type the EAN-13 number below).</p>';
+        }
+        showToast('No barcode detected in photo — try closer & sharper');
+      }
+    } catch (err) {
+      console.warn('Barcode photo decode error:', err);
+      if (card) card.hidden = true;
+      showToast('Could not read barcode photo');
     }
   }
 
@@ -1537,9 +1621,9 @@
     card.innerHTML = '<p class="section-subtitle" style="margin:0;">Looking up EU nutrition label via Open Food Facts…</p>';
 
     try {
-      const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=product_name,brands,serving_size,quantity,nutriments`;
+      const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=product_name,product_name_en,product_name_el,generic_name,brands,serving_size,quantity,nutriments`;
       const resp = await fetch(url);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      if (!resp.ok && resp.status !== 404) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
       const prod = data?.product;
       if (!prod || data.status === 0) {
@@ -1565,10 +1649,16 @@
             : 0;
       const isLiquid = /\b(ml|cl|l)\b/i.test(`${prod.quantity || ''} ${prod.serving_size || ''}`);
       const parsedServing = parseFloat(String(prod.serving_size || '').match(/(\d+(?:\.\d+)?)\s*(g|ml)/i)?.[1] || '100');
+      const resolvedName =
+        prod.product_name ||
+        prod.product_name_en ||
+        prod.product_name_el ||
+        prod.generic_name ||
+        `Product ${code}`;
 
       const normalized = {
         barcode: code,
-        name: String(prod.product_name || `Product ${code}`).trim(),
+        name: String(resolvedName).trim(),
         brand: String(prod.brands || '').split(',')[0].trim(),
         unit: isLiquid ? 'ml' : 'g',
         defaultAmount: Math.max(5, Math.round(parsedServing || 100)),
@@ -2375,6 +2465,10 @@
     // EU Barcode scanner listeners
     $('barcode-start-cam-btn')?.addEventListener('click', startBarcodeCamera);
     $('barcode-stop-cam-btn')?.addEventListener('click', stopBarcodeCamera);
+    $('barcode-photo-input')?.addEventListener('change', (e) => {
+      if (e.target.files?.[0]) handleBarcodePhotoFile(e.target.files[0]);
+      e.target.value = '';
+    });
     $('barcode-lookup-btn')?.addEventListener('click', () => {
       lookupBarcode($('barcode-manual-input')?.value);
     });
