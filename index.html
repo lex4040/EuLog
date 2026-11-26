@@ -546,24 +546,18 @@
             <button type="button" class="portion-pill" data-scan-portion="1.4">1.4&times; Large</button>
           </div>
 
-          <!-- Upload / In-App Live Camera Dropzone -->
+          <!-- Photo Upload Dropzone -->
           <div id="scan-dropzone" class="scan-dropzone">
-            <video id="scan-live-video" class="scan-live-video" playsinline autoplay muted hidden></video>
             <img id="scan-preview-img" class="scan-preview-img" alt="Meal photo preview" hidden />
             <div id="scan-empty-prompt" class="scan-empty-prompt">
               <div class="scan-camera-badge">
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" /><circle cx="12" cy="13" r="3" /></svg>
               </div>
-              <p class="scan-drop-title">Snap or upload a meal photo</p>
+              <p class="scan-drop-title">Upload or take a meal photo</p>
               <p class="scan-drop-sub">Captures an ultra-light <strong>224&times;224</strong> frame and runs <strong>SigLIP Vision (q4)</strong> locally against <strong>380 USDA &amp; Greek dishes</strong>.</p>
             </div>
-            <div id="scan-live-controls" class="scan-input-buttons" hidden>
-              <button id="scan-capture-btn" type="button" class="btn btn-primary btn-sm">Capture &amp; Scan</button>
-              <button id="scan-stop-cam-btn" type="button" class="btn btn-ghost btn-sm">Cancel Camera</button>
-            </div>
             <div id="scan-picker-controls" class="scan-input-buttons">
-              <button id="scan-open-cam-btn" type="button" class="btn btn-primary btn-sm">Live Camera</button>
-              <label class="btn btn-soft btn-sm file-trigger-btn">
+              <label class="btn btn-primary btn-sm file-trigger-btn">
                 <input id="scan-gallery-input" type="file" accept="image/*" hidden />
                 Choose Photo
               </label>

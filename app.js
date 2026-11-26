@@ -994,7 +994,6 @@
     const el = $(id);
     if (!el) return;
     if (id === 'scan-modal') {
-      stopLiveCamera();
       stopBarcodeCamera();
     }
     if (id === 'food-log-modal') editingEntryId = null;
@@ -1287,59 +1286,8 @@
   }
 
   /* ==================== ON-DEVICE SIGLIP PHOTO SCAN MODAL ==================== */
-  let liveCameraStream = null;
-
-  function stopLiveCamera() {
-    if (liveCameraStream) {
-      for (const track of liveCameraStream.getTracks()) track.stop();
-      liveCameraStream = null;
-    }
-    const video = $('scan-live-video');
-    if (video) {
-      video.srcObject = null;
-      video.hidden = true;
-    }
-    const liveCtrl = $('scan-live-controls');
-    const pickCtrl = $('scan-picker-controls');
-    if (liveCtrl) liveCtrl.hidden = true;
-    if (pickCtrl) pickCtrl.hidden = false;
-  }
-
-  async function startLiveCamera() {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      showToast('Live camera not available — tap Choose Photo instead');
-      $('scan-gallery-input')?.click();
-      return;
-    }
-    try {
-      stopLiveCamera();
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: 'environment' },
-          width: { ideal: 320, max: 480 },
-          height: { ideal: 320, max: 480 },
-          frameRate: { ideal: 15, max: 24 },
-        },
-        audio: false,
-      });
-      liveCameraStream = stream;
-      const video = $('scan-live-video');
-      video.srcObject = stream;
-      video.hidden = false;
-      $('scan-preview-img').hidden = true;
-      $('scan-empty-prompt').hidden = true;
-      $('scan-picker-controls').hidden = true;
-      $('scan-live-controls').hidden = false;
-      await video.play().catch(() => {});
-    } catch (err) {
-      console.warn('Live camera permission/open failed:', err);
-      showToast('Camera blocked — tap Choose Photo to pick a picture');
-    }
-  }
-
   function setScanMode(mode) {
     scanModalMode = mode === 'barcode' ? 'barcode' : 'photo';
-    stopLiveCamera();
     stopBarcodeCamera();
     $('scan-mode-photo-btn')?.classList.toggle('is-active', scanModalMode === 'photo');
     $('scan-mode-barcode-btn')?.classList.toggle('is-active', scanModalMode === 'barcode');
@@ -1451,7 +1399,6 @@
       showToast('Please select a valid image file');
       return;
     }
-    stopLiveCamera();
     analyzePhotoSource(file);
   }
 
@@ -2360,29 +2307,7 @@
       closeModal('food-log-modal');
     });
 
-    // SigLIP photo scan inputs, in-app live camera & drag/drop
-    $('scan-open-cam-btn').addEventListener('click', startLiveCamera);
-    $('scan-stop-cam-btn').addEventListener('click', () => {
-      stopLiveCamera();
-      if (!$('scan-preview-img').src) $('scan-empty-prompt').hidden = false;
-    });
-    $('scan-capture-btn').addEventListener('click', async () => {
-      const video = $('scan-live-video');
-      if (!video || video.hidden) return;
-      try {
-        // Grab tiny 224x224 snapshot and release camera hardware BEFORE SigLIP starts
-        const frame = await window.EuLogVision.prepareCompactFrame(video, 224);
-        stopLiveCamera();
-        const preview = $('scan-preview-img');
-        preview.src = frame.previewUrl;
-        preview.hidden = false;
-        $('scan-empty-prompt').hidden = true;
-        analyzePhotoSource(frame);
-      } catch (err) {
-        stopLiveCamera();
-        showToast('Could not capture camera frame — try Choose Photo');
-      }
-    });
+    // SigLIP photo scan input & drag/drop
     $('scan-gallery-input').addEventListener('change', (e) => {
       if (e.target.files?.[0]) handlePhotoFile(e.target.files[0]);
       e.target.value = '';
