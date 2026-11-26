@@ -683,9 +683,19 @@
     return (customIngredients || []).find((c) => c.id === item.ingredientId) || null;
   }
 
+  const ORIGINAL_RECIPE_CACHE = new WeakMap();
+
+  function cloneItemsShallow(items) {
+    return items.map((it) => ({
+      ingredientId: it.ingredientId,
+      amount: it.amount,
+      ...(it.inlineIngredient ? { inlineIngredient: it.inlineIngredient } : {}),
+    }));
+  }
+
   /**
    * Generates the original structured ingredient list [{ ingredientId, amount, inlineIngredient? }]
-   * for ANY food in the 2,154-food database.
+   * for ANY food in the 2,154-food database (memoized per food object for instant rendering).
    */
   function getOriginalRecipeItems(food) {
     if (!food) return [];
@@ -699,76 +709,81 @@
       }));
     }
 
+    const cached = ORIGINAL_RECIPE_CACHE.get(food);
+    if (cached) return cloneItemsShallow(cached);
+
+    let computed;
+
     // 1. Hand-crafted signature recipe
     if (CURATED_RECIPES[food.id]) {
-      return CURATED_RECIPES[food.id].map(([ingredientId, amount]) => ({
+      computed = CURATED_RECIPES[food.id].map(([ingredientId, amount]) => ({
         ingredientId,
         amount,
       }));
-    }
-
-    // 2. Single-ingredient whole food directly in INGREDIENTS_DB
-    if (SINGLE_FOOD_TO_ING[food.id] && INGREDIENTS_BY_ID[SINGLE_FOOD_TO_ING[food.id]]) {
+    } else if (SINGLE_FOOD_TO_ING[food.id] && INGREDIENTS_BY_ID[SINGLE_FOOD_TO_ING[food.id]]) {
+      // 2. Single-ingredient whole food directly in INGREDIENTS_DB
       const ingId = SINGLE_FOOD_TO_ING[food.id];
       const grams = Math.max(5, Math.round(Number(food.grams) || INGREDIENTS_BY_ID[ingId].defaultAmount || 100));
-      return [{ ingredientId: ingId, amount: grams }];
-    }
+      computed = [{ ingredientId: ingId, amount: grams }];
+    } else {
+      // 3. Auto-decompose composite dishes across all 2,154 foods using INGREDIENTS_DB
+      const text = `${food.name || ''} ${food.description || ''}`;
+      const matched = [];
+      const seen = new Set();
+      for (const [regex, ingId, baseQty] of KEYWORD_RULES) {
+        if (regex.test(text) && !seen.has(ingId) && INGREDIENTS_BY_ID[ingId]) {
+          seen.add(ingId);
+          matched.push({ ingredientId: ingId, amount: baseQty });
+          if (matched.length >= 6) break;
+        }
+      }
 
-    // 3. Auto-decompose composite dishes across all 2,154 foods using INGREDIENTS_DB
-    const text = `${food.name || ''} ${food.description || ''}`;
-    const matched = [];
-    const seen = new Set();
-    for (const [regex, ingId, baseQty] of KEYWORD_RULES) {
-      if (regex.test(text) && !seen.has(ingId) && INGREDIENTS_BY_ID[ingId]) {
-        seen.add(ingId);
-        matched.push({ ingredientId: ingId, amount: baseQty });
-        if (matched.length >= 6) break;
+      const isSavoryDish = /Greek Meals|Meals|Pies|Salads|Soups|Seafood|Meat|Street Food|Appetizers|Meze|Pasta/i.test(
+        `${food.category || ''} ${food.description || ''}`
+      );
+      const isSweetOrDrink = /Dessert|Sweet|Beverage|Drink|Coffee|Fruit|Bakery/i.test(
+        `${food.category || ''} ${food.name || ''}`
+      );
+
+      if (matched.length >= 2) {
+        if (isSavoryDish && !isSweetOrDrink && !seen.has('olive-oil')) {
+          matched.push({ ingredientId: 'olive-oil', amount: 12 });
+          seen.add('olive-oil');
+        }
+        if (isSavoryDish && !isSweetOrDrink && !seen.has('table-salt')) {
+          matched.push({ ingredientId: 'table-salt', amount: 1.0 });
+          seen.add('table-salt');
+        }
+
+        const rawTotals = computeRecipeTotals(matched, []);
+        const targetKcal = Number(food.calories) || 0;
+        if (targetKcal > 40 && rawTotals.calories > 40) {
+          const factor = Math.max(0.45, Math.min(2.1, targetKcal / rawTotals.calories));
+          computed = matched.map((it) => {
+            const isTiny = it.ingredientId === 'table-salt' || it.amount <= 10;
+            const scaled = isTiny
+              ? Number(Math.max(0.5, it.amount * Math.min(1.4, factor)).toFixed(1))
+              : Math.max(5, Math.round((it.amount * factor) / 5) * 5);
+            return { ingredientId: it.ingredientId, amount: scaled };
+          });
+        } else {
+          computed = matched;
+        }
+      } else {
+        // 4. Fallback: exact per-100g inline base ingredient
+        const inline = createInlineIngredientFromFood(food);
+        computed = [
+          {
+            ingredientId: inline.id,
+            amount: inline.defaultAmount,
+            inlineIngredient: inline,
+          },
+        ];
       }
     }
 
-    const isSavoryDish = /Greek Meals|Meals|Pies|Salads|Soups|Seafood|Meat|Street Food|Appetizers|Meze|Pasta/i.test(
-      `${food.category || ''} ${food.description || ''}`
-    );
-    const isSweetOrDrink = /Dessert|Sweet|Beverage|Drink|Coffee|Fruit|Bakery/i.test(
-      `${food.category || ''} ${food.name || ''}`
-    );
-
-    // If composite dish (2+ matched ingredients), add olive oil / salt seasoning if savory and normalize portion weight
-    if (matched.length >= 2) {
-      if (isSavoryDish && !isSweetOrDrink && !seen.has('olive-oil')) {
-        matched.push({ ingredientId: 'olive-oil', amount: 12 });
-        seen.add('olive-oil');
-      }
-      if (isSavoryDish && !isSweetOrDrink && !seen.has('table-salt')) {
-        matched.push({ ingredientId: 'table-salt', amount: 1.0 });
-        seen.add('table-salt');
-      }
-
-      // Scale ingredient weights proportionally so total calories align closely with the dish's reference serving
-      const rawTotals = computeRecipeTotals(matched, []);
-      const targetKcal = Number(food.calories) || 0;
-      if (targetKcal > 40 && rawTotals.calories > 40) {
-        const factor = Math.max(0.45, Math.min(2.1, targetKcal / rawTotals.calories));
-        return matched.map((it) => {
-          const isTiny = it.ingredientId === 'table-salt' || it.amount <= 10;
-          const scaled = isTiny
-            ? Number(Math.max(0.5, it.amount * Math.min(1.4, factor)).toFixed(1))
-            : Math.max(5, Math.round((it.amount * factor) / 5) * 5);
-          return { ingredientId: it.ingredientId, amount: scaled };
-        });
-      }
-      return matched;
-    }
-
-    // 4. Fallback: exact per-100g inline base ingredient so 100% of foods can be scaled & combined with any DB ingredient
-    const inline = createInlineIngredientFromFood(food);
-    return [
-      {
-        ingredientId: inline.id,
-        amount: inline.defaultAmount,
-        inlineIngredient: inline,
-      },
-    ];
+    ORIGINAL_RECIPE_CACHE.set(food, computed);
+    return cloneItemsShallow(computed);
   }
 
   /**
@@ -1121,43 +1136,81 @@
       .trim();
   }
 
-  function matchesSearchQuery(haystack, rawQuery) {
+  const HAYSTACK_INDEX_CACHE = new Map();
+  let lastQueryKey = '';
+  let lastPreparedTokens = [];
+
+  function getIndexedHaystack(haystack) {
+    const key = String(haystack || '');
+    let entry = HAYSTACK_INDEX_CACHE.get(key);
+    if (!entry) {
+      if (HAYSTACK_INDEX_CACHE.size > 4500) HAYSTACK_INDEX_CACHE.clear();
+      entry = {
+        low: key.toLowerCase(),
+        phon: phoneticNormalize(key),
+      };
+      HAYSTACK_INDEX_CACHE.set(key, entry);
+    }
+    return entry;
+  }
+
+  function getPreparedQueryTokens(rawQuery) {
     const q = String(rawQuery || '').trim();
-    if (!q) return true;
-
-    const hayLow = String(haystack || '').toLowerCase();
-    const hayPhon = phoneticNormalize(haystack);
-    const tokens = q.split(/\s+/).filter(Boolean);
-
-    return tokens.every((tok) => {
-      const lowTok = tok.toLowerCase();
-      if (hayLow.includes(lowTok)) return true;
-
-      const transTok = transliterateGreek(tok);
-      if (transTok && hayLow.includes(transTok)) return true;
-
-      const phonTok = phoneticNormalize(tok);
-      if (phonTok && hayPhon.includes(phonTok)) return true;
-
-      // Also match singular stem when user types Greek plural/nominative ending (-s)
-      if (phonTok.length >= 4 && phonTok.endsWith('s') && hayPhon.includes(phonTok.slice(0, -1))) {
-        return true;
-      }
-
-      // Check bilingual Greek/Greeklish -> English food phrases (restrict to realistic inflection suffixes)
-      for (const [stem, candidates] of GREEK_ALIASES) {
-        const isInflectedMatch =
-          phonTok.startsWith(stem) && phonTok.length - stem.length <= 3;
-        const isPrefixTypeMatch =
-          phonTok.length >= 4 && stem.startsWith(phonTok) && stem.length - phonTok.length <= 3;
-        if (isInflectedMatch || isPrefixTypeMatch) {
-          if (candidates.some((c) => hayLow.includes(c) || hayPhon.includes(phoneticNormalize(c)))) {
-            return true;
+    if (q === lastQueryKey) return lastPreparedTokens;
+    lastQueryKey = q;
+    if (!q) {
+      lastPreparedTokens = [];
+      return lastPreparedTokens;
+    }
+    lastPreparedTokens = q
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((tok) => {
+        const lowTok = tok.toLowerCase();
+        const transTok = transliterateGreek(tok);
+        const phonTok = phoneticNormalize(tok);
+        const singularPhon = phonTok.length >= 4 && phonTok.endsWith('s') ? phonTok.slice(0, -1) : '';
+        const aliasPhrases = [];
+        for (const [stem, candidates] of GREEK_ALIASES) {
+          const isInflectedMatch =
+            phonTok.startsWith(stem) && phonTok.length - stem.length <= 3;
+          const isPrefixTypeMatch =
+            phonTok.length >= 4 && stem.startsWith(phonTok) && stem.length - phonTok.length <= 3;
+          if (isInflectedMatch || isPrefixTypeMatch) {
+            for (const c of candidates) {
+              aliasPhrases.push({ low: c, phon: phoneticNormalize(c) });
+            }
           }
         }
+        return { lowTok, transTok, phonTok, singularPhon, aliasPhrases };
+      });
+    return lastPreparedTokens;
+  }
+
+  function matchesSearchQuery(haystack, rawQuery) {
+    const tokens = getPreparedQueryTokens(rawQuery);
+    if (tokens.length === 0) return true;
+
+    const { low: hayLow, phon: hayPhon } = getIndexedHaystack(haystack);
+
+    for (let i = 0; i < tokens.length; i += 1) {
+      const t = tokens[i];
+      if (hayLow.includes(t.lowTok)) continue;
+      if (t.transTok && hayLow.includes(t.transTok)) continue;
+      if (t.phonTok && hayPhon.includes(t.phonTok)) continue;
+      if (t.singularPhon && hayPhon.includes(t.singularPhon)) continue;
+
+      let aliasHit = false;
+      for (let j = 0; j < t.aliasPhrases.length; j += 1) {
+        const ap = t.aliasPhrases[j];
+        if (hayLow.includes(ap.low) || hayPhon.includes(ap.phon)) {
+          aliasHit = true;
+          break;
+        }
       }
-      return false;
-    });
+      if (!aliasHit) return false;
+    }
+    return true;
   }
 
   global.EuLogRecipes = {

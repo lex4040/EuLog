@@ -84,6 +84,17 @@
   let pendingMealTarget = guessDefaultMeal();
   let deferredInstallPrompt = null;
   let toastTimer = null;
+  let foodsSearchTimer = null;
+  let scanSearchTimer = null;
+  const effectiveFoodCache = new Map();
+
+  function invalidateRecipeCaches(foodId) {
+    if (foodId) {
+      effectiveFoodCache.delete(foodId);
+    } else {
+      effectiveFoodCache.clear();
+    }
+  }
 
   const $ = (id) => document.getElementById(id);
 
@@ -137,10 +148,18 @@
 
   function getEffectiveFoodForLog(food) {
     if (!food) return null;
+    if (food.id && effectiveFoodCache.has(food.id)) {
+      return effectiveFoodCache.get(food.id);
+    }
     const origItems = getOriginalRecipeItems(food);
     const savedDefault = state.defaultRecipes?.[food.id];
     const items = Array.isArray(savedDefault) && savedDefault.length > 0 ? cloneRecipeItems(savedDefault) : origItems;
-    return buildFoodFromRecipeItems(food, items, state.customIngredients, origItems);
+    const built = buildFoodFromRecipeItems(food, items, state.customIngredients, origItems);
+    if (food.id && built) {
+      if (effectiveFoodCache.size > 1200) effectiveFoodCache.clear();
+      effectiveFoodCache.set(food.id, built);
+    }
+    return built;
   }
 
   function persist() {
@@ -1200,6 +1219,7 @@
     if (!activeModalFood) return;
     if (!state.defaultRecipes) state.defaultRecipes = {};
     state.defaultRecipes[activeModalFood.id] = cloneRecipeItems(activeRecipeItems);
+    invalidateRecipeCaches(activeModalFood.id);
     persist();
     renderRecipeEditor();
     if (activeTab === 'foods') renderFoodsLibrary();
@@ -1234,6 +1254,7 @@
     if (state.defaultRecipes && state.defaultRecipes[activeModalFood.id]) {
       delete state.defaultRecipes[activeModalFood.id];
     }
+    invalidateRecipeCaches(activeModalFood.id);
     activeRecipeItems = cloneRecipeItems(activeRecipeOriginalItems);
     persist();
     renderRecipeEditor();
@@ -1678,6 +1699,7 @@
     } else {
       state.customIngredients.unshift(entry);
     }
+    invalidateRecipeCaches();
     persist();
     if (activeTab === 'foods') renderFoodsLibrary();
     showToast(`Saved ${entry.name} to Ingredients DB (offline ready)`);
@@ -2060,11 +2082,16 @@
       renderWeekly();
     });
 
-    // Foods search & sort
+    // Foods search & sort (debounced 75ms for smooth mobile typing across 2,154+ foods)
     $('foods-search-input').addEventListener('input', (e) => {
       foodsSearchQuery = e.target.value;
       foodsRenderLimit = 80;
-      renderFoodsLibrary();
+      clearTimeout(foodsSearchTimer);
+      if (!foodsSearchQuery.trim()) {
+        renderFoodsLibrary();
+        return;
+      }
+      foodsSearchTimer = setTimeout(renderFoodsLibrary, 75);
     });
     $('foods-sort-select').addEventListener('change', (e) => {
       foodsSortBy = e.target.value;
@@ -2220,6 +2247,7 @@
       };
       if (!Array.isArray(state.customIngredients)) state.customIngredients = [];
       state.customIngredients.unshift(newIng);
+      invalidateRecipeCaches();
       persist();
       closeModal('custom-ingredient-modal');
 
@@ -2381,21 +2409,23 @@
     $('scan-quick-search').addEventListener('input', (e) => {
       const q = e.target.value.trim().toLowerCase();
       const box = $('scan-quick-results');
+      clearTimeout(scanSearchTimer);
       if (!q) {
         box.hidden = true;
         box.innerHTML = '';
         return;
       }
-      const hits = getAllFoods()
-        .filter((f) => matchesSearchQuery(`${f.name} ${f.category} ${f.prompt || ''}`, q))
-        .slice(0, 8);
-      if (hits.length === 0) {
-        box.innerHTML = '<p class="section-subtitle">No matching recipes found.</p>';
-      } else {
-        box.innerHTML = hits
-          .map((rawFood) => {
-            const food = getEffectiveFoodForLog(rawFood);
-            return `
+      scanSearchTimer = setTimeout(() => {
+        const hits = getAllFoods()
+          .filter((f) => matchesSearchQuery(`${f.name} ${f.category} ${f.prompt || ''}`, q))
+          .slice(0, 8);
+        if (hits.length === 0) {
+          box.innerHTML = '<p class="section-subtitle">No matching recipes found.</p>';
+        } else {
+          box.innerHTML = hits
+            .map((rawFood) => {
+              const food = getEffectiveFoodForLog(rawFood);
+              return `
           <div class="scan-result-row">
             <div class="scan-result-info">
               <div class="scan-result-top">
@@ -2410,10 +2440,11 @@
             </div>
           </div>
         `;
-          })
-          .join('');
-      }
-      box.hidden = false;
+            })
+            .join('');
+        }
+        box.hidden = false;
+      }, 75);
     });
 
     // EU Barcode scanner listeners
@@ -2505,6 +2536,7 @@
             throw new Error('Invalid backup format');
           }
           state = { ...createInitialState(), ...parsed };
+          invalidateRecipeCaches();
           persist();
           applyTheme(state.settings.theme);
           closeModal('settings-modal');
@@ -2521,6 +2553,7 @@
     $('reset-data-btn').addEventListener('click', () => {
       if (!confirm('Reset all locally saved EuLog meals, supplements, and goals?')) return;
       state = createInitialState();
+      invalidateRecipeCaches();
       persist();
       applyTheme(state.settings.theme);
       closeModal('settings-modal');

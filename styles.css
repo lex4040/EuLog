@@ -1486,6 +1486,8 @@ button {
   box-shadow: var(--shadow-card);
   cursor: pointer;
   transition: border-color 0.16s var(--ease);
+  content-visibility: auto;
+  contain-intrinsic-size: auto 150px;
 }
 
 .vital-card:hover {
@@ -1678,6 +1680,8 @@ button {
   gap: 10px;
   box-shadow: var(--shadow-card);
   transition: border-color 0.15s var(--ease);
+  content-visibility: auto;
+  contain-intrinsic-size: auto 84px;
 }
 
 .food-card:hover {

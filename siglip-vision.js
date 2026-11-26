@@ -19,8 +19,29 @@
   let activeDevice = 'wasm';
   let modelStatus = 'idle'; // 'idle' | 'loading' | 'ready' | 'fallback'
   let decodedEmbCache = null;
+  let embeddingsLoadPromise = null;
 
   const pendingJobs = new Map();
+
+  function ensureEmbeddingsLoaded() {
+    if (global.EuLogSiglipEmbeddings) return Promise.resolve(global.EuLogSiglipEmbeddings);
+    if (embeddingsLoadPromise) return embeddingsLoadPromise;
+    embeddingsLoadPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = './siglip-embeddings.js';
+      script.async = true;
+      script.onload = () => {
+        if (global.EuLogSiglipEmbeddings) resolve(global.EuLogSiglipEmbeddings);
+        else reject(new Error('SigLIP embeddings payload missing'));
+      };
+      script.onerror = () => {
+        embeddingsLoadPromise = null;
+        reject(new Error('Failed to load siglip-embeddings.js'));
+      };
+      document.head.appendChild(script);
+    });
+    return embeddingsLoadPromise;
+  }
 
   function getDecodedEmbeddings() {
     if (decodedEmbCache) return decodedEmbCache;
@@ -96,7 +117,10 @@
 
   async function ensureModelLoaded(onProgress) {
     modelStatus = 'loading';
-    const res = await postWorkerJob({ type: 'preload' }, [], onProgress);
+    const [res] = await Promise.all([
+      postWorkerJob({ type: 'preload' }, [], onProgress),
+      ensureEmbeddingsLoaded(),
+    ]);
     activeDevice = res.device || activeDevice;
     modelStatus = 'ready';
     return res;
@@ -328,11 +352,14 @@
 
     try {
       const rgbaCopy = new Uint8ClampedArray(frame.imageData.data);
-      const res = await postWorkerJob(
-        { type: 'embed', rgba: rgbaCopy.buffer, width: frame.width, height: frame.height },
-        [rgbaCopy.buffer],
-        onProgress
-      );
+      const [res] = await Promise.all([
+        postWorkerJob(
+          { type: 'embed', rgba: rgbaCopy.buffer, width: frame.width, height: frame.height },
+          [rgbaCopy.buffer],
+          onProgress
+        ),
+        ensureEmbeddingsLoaded(),
+      ]);
 
       onProgress?.({
         stage: 'rank',
@@ -394,6 +421,7 @@
   global.EuLogVision = {
     MODEL_ID,
     prepareCompactFrame,
+    ensureEmbeddingsLoaded,
     ensureModelLoaded,
     recognizeFoodPhoto,
     getStatus,
