@@ -42,7 +42,7 @@
         <button type="button" class="nav-tab is-active" data-tab="today">Today</button>
         <button type="button" class="nav-tab" data-tab="supplements">Supplements</button>
         <button type="button" class="nav-tab" data-tab="weekly">Weekly Vitals</button>
-        <button type="button" class="nav-tab" data-tab="foods">380 Foods</button>
+        <button type="button" class="nav-tab" data-tab="foods">2,154 Foods</button>
       </nav>
 
       <div class="top-actions">
@@ -325,7 +325,7 @@
         <div class="panel-header-row">
           <div>
             <h2 class="panel-title">Food Library</h2>
-            <p id="foods-count-subtitle" class="panel-subtitle">380 USDA &amp; local Greek foods with full micronutrient profiles</p>
+            <p id="foods-count-subtitle" class="panel-subtitle">2,154 deduplicated USDA &amp; Greek foods with full micronutrient profiles</p>
           </div>
           <button id="open-custom-food-btn" type="button" class="btn btn-primary btn-sm">+ Custom Food</button>
         </div>
@@ -334,7 +334,7 @@
           <div class="search-sort-row">
             <div class="search-input-wrap">
               <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
-              <input id="foods-search-input" type="search" class="text-input search-input" placeholder="Search 380 foods (e.g., gyros, moussaka, horiatiki, salmon, avocado)..." autocomplete="off" />
+              <input id="foods-search-input" type="search" class="text-input search-input" placeholder="Search 2,154 foods (e.g., gyros, moussaka, kataifi, freddo, salmon)..." autocomplete="off" />
             </div>
 
             <select id="foods-sort-select" class="select-input" aria-label="Sort foods">
@@ -493,15 +493,21 @@
         <!-- Predictions List -->
         <div id="scan-results-section" hidden>
           <div class="section-head-row">
-            <h4 id="scan-results-heading" class="mini-section-title">Top Matches from 380 Foods</h4>
+            <h4 id="scan-results-heading" class="mini-section-title">Top SigLIP Matches</h4>
             <span id="scan-engine-note" class="section-subtitle"></span>
           </div>
           <div id="scan-results-list" class="scan-results-list"></div>
         </div>
+
+        <!-- Quick Refine / Search across all 2,154 foods -->
+        <div class="scan-quick-search-box">
+          <input id="scan-quick-search" type="search" class="text-input" placeholder="Or search all 2,154 foods right here (e.g., kataifi, skepasti, freddo)..." autocomplete="off" />
+          <div id="scan-quick-results" class="scan-results-list" hidden></div>
+        </div>
       </div>
 
       <div class="modal-foot">
-        <button id="scan-manual-fallback-btn" type="button" class="btn btn-ghost">Browse 380 Foods</button>
+        <button id="scan-manual-fallback-btn" type="button" class="btn btn-ghost">Browse 2,154 Foods</button>
         <button type="button" class="btn btn-primary" data-close-modal="scan-modal">Done</button>
       </div>
     </div>
@@ -694,6 +700,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="./foods-db.js"></script>
+  <script src="./greek-foods-2000.js"></script>
   <script src="./nutrients.js"></script>
   <script src="./supplements.js"></script>
   <script src="./storage.js"></script>

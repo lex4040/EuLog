@@ -4,12 +4,13 @@
    updates arrive promptly while remaining 100% usable offline.
    ========================================================================== */
 
-const CACHE_NAME = 'eulog-offline-v4';
+const CACHE_NAME = 'eulog-offline-v5';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
   './foods-db.js',
+  './greek-foods-2000.js',
   './nutrients.js',
   './supplements.js',
   './storage.js',

@@ -1830,6 +1830,20 @@ button {
   gap: 8px;
 }
 
+.scan-quick-search-box {
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--rule);
+}
+
+.load-more-wrap {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 4px;
+}
+
 .scan-result-row {
   display: flex;
   align-items: center;

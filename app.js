@@ -580,14 +580,16 @@
       .join('');
   }
 
-  /* ==================== TAB 4: 153 USDA FOODS LIBRARY ==================== */
+  /* ==================== TAB 4: FOODS LIBRARY (2,154+ FOODS) ==================== */
+  let foodsRenderLimit = 80;
+
   function renderFoodsLibrary() {
     const allFoods = getAllFoods();
     const customCount = (state.customFoods || []).length;
     $('foods-count-subtitle').textContent =
       customCount > 0
-        ? `${USDA_FOODS.length} USDA FoodData Central foods + ${customCount} custom foods`
-        : `${USDA_FOODS.length} curated USDA FoodData Central foods with full micronutrient profiles`;
+        ? `${USDA_FOODS.length.toLocaleString()} USDA & Greek foods + ${customCount} custom foods`
+        : `${USDA_FOODS.length.toLocaleString()} deduplicated USDA & Greek foods with full micronutrient profiles`;
 
     const chips = ['All', 'Favorites', ...(customCount > 0 ? ['Custom'] : []), ...USDA_CATEGORIES.slice(1)];
     $('foods-category-chips').innerHTML = chips
@@ -635,7 +637,8 @@
       return;
     }
 
-    listEl.innerHTML = filtered
+    const visible = filtered.slice(0, foodsRenderLimit);
+    const cardsHtml = visible
       .map((f) => {
         const isFav = favSet.has(f.id);
         const sortHighlight =
@@ -657,6 +660,14 @@
         `;
       })
       .join('');
+
+    const remaining = filtered.length - visible.length;
+    const moreBtnHtml =
+      remaining > 0
+        ? `<div class="load-more-wrap"><button type="button" class="btn btn-soft" data-load-more-foods="1">Show ${Math.min(80, remaining)} more (showing ${visible.length.toLocaleString()} of ${filtered.length.toLocaleString()})</button></div>`
+        : '';
+
+    listEl.innerHTML = cardsHtml + moreBtnHtml;
   }
 
   /* ==================== MODALS: OPEN / CLOSE ==================== */
@@ -1024,10 +1035,12 @@
     // Foods search & sort
     $('foods-search-input').addEventListener('input', (e) => {
       foodsSearchQuery = e.target.value;
+      foodsRenderLimit = 80;
       renderFoodsLibrary();
     });
     $('foods-sort-select').addEventListener('change', (e) => {
       foodsSortBy = e.target.value;
+      foodsRenderLimit = 80;
       renderFoodsLibrary();
     });
     $('open-custom-food-btn').addEventListener('click', () => {
@@ -1138,6 +1151,40 @@
       closeModal('scan-modal');
       switchTab('foods');
       $('foods-search-input').focus();
+    });
+
+    $('scan-quick-search').addEventListener('input', (e) => {
+      const q = e.target.value.trim().toLowerCase();
+      const box = $('scan-quick-results');
+      if (!q) {
+        box.hidden = true;
+        box.innerHTML = '';
+        return;
+      }
+      const hits = getAllFoods()
+        .filter((f) => `${f.name} ${f.category}`.toLowerCase().includes(q))
+        .slice(0, 8);
+      if (hits.length === 0) {
+        box.innerHTML = '<p class="section-subtitle">No matching foods found.</p>';
+      } else {
+        box.innerHTML = hits
+          .map(
+            (food) => `
+          <div class="scan-result-row">
+            <div class="scan-result-info">
+              <div class="scan-result-top">
+                <strong>${escapeHtml(food.name)}</strong>
+                <span class="entry-meta">${Math.round(food.calories)} kcal</span>
+              </div>
+              <span class="entry-meta">${escapeHtml(food.serving)} · ${escapeHtml(food.category)} · ${food.protein}g P</span>
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" data-scan-log-id="${escapeHtml(food.id)}">+ Log</button>
+          </div>
+        `
+          )
+          .join('');
+      }
+      box.hidden = false;
     });
 
     // Settings modal controls
@@ -1295,9 +1342,17 @@
         return;
       }
 
+      const loadMore = e.target.closest('[data-load-more-foods]');
+      if (loadMore) {
+        foodsRenderLimit += 80;
+        renderFoodsLibrary();
+        return;
+      }
+
       const foodCat = e.target.closest('[data-food-cat]');
       if (foodCat) {
         selectedFoodCategory = foodCat.dataset.foodCat;
+        foodsRenderLimit = 80;
         renderFoodsLibrary();
         return;
       }
