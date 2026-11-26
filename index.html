@@ -320,37 +320,38 @@
         <div id="weekly-nutrients-groups" class="vital-groups"></div>
       </section>
 
-      <!-- ==================== TAB 4: 153 USDA FOODS ==================== -->
-      <section id="view-foods" class="view-panel" aria-label="153 USDA foods database">
+      <!-- ==================== TAB 4: RECIPES & INGREDIENTS LIBRARY ==================== -->
+      <section id="view-foods" class="view-panel" aria-label="Recipes and Ingredients database">
         <div class="panel-header-row">
           <div>
             <h2 class="panel-title">Food Library</h2>
-            <p id="foods-count-subtitle" class="panel-subtitle">2,154 deduplicated USDA &amp; Greek foods with full micronutrient profiles</p>
+            <p id="foods-count-subtitle" class="panel-subtitle">2,154 customizable recipes &amp; separate ingredients database</p>
           </div>
           <button id="open-custom-food-btn" type="button" class="btn btn-primary btn-sm">+ Custom Food</button>
         </div>
 
         <section class="sheet-card foods-controls-card">
+          <div class="foods-mode-bar">
+            <div class="segmented-toggle" role="tablist" aria-label="Library view mode">
+              <button id="foods-mode-recipes-btn" type="button" class="seg-btn is-active" data-foods-mode="recipes">Recipes</button>
+              <button id="foods-mode-ingredients-btn" type="button" class="seg-btn" data-foods-mode="ingredients">Ingredients DB</button>
+            </div>
+          </div>
+
           <div class="search-sort-row">
             <div class="search-input-wrap">
               <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
-              <input id="foods-search-input" type="search" class="text-input search-input" placeholder="Search 2,154 foods (e.g., gyros, moussaka, kataifi, freddo, salmon)..." autocomplete="off" />
+              <input id="foods-search-input" type="search" class="text-input search-input" placeholder="Search 2,154 recipes (e.g., avgolemono, gyros, moussaka, salmon)..." autocomplete="off" />
             </div>
 
             <select id="foods-sort-select" class="select-input" aria-label="Sort foods">
               <option value="name">Sort: A–Z</option>
               <option value="protein">Highest Protein</option>
-              <option value="fiber">Highest Fiber</option>
               <option value="cal-asc">Lowest Calories</option>
-              <option value="vitD">Richest in Vitamin D</option>
-              <option value="iron">Richest in Iron</option>
-              <option value="omega3">Richest in Omega-3</option>
-              <option value="magnesium">Richest in Magnesium</option>
-              <option value="calcium">Richest in Calcium</option>
-              <option value="potassium">Richest in Potassium</option>
-              <option value="vitC">Richest in Vitamin C</option>
-              <option value="folate">Richest in Folate</option>
-              <option value="vitB12">Richest in B12</option>
+              <option value="carbs-asc">Lowest Carbs</option>
+              <option value="sugar-asc">Lowest Sugars</option>
+              <option value="salt-asc">Lowest Salt</option>
+              <option value="fiber">Highest Fiber</option>
             </select>
           </div>
 
@@ -419,10 +420,38 @@
         </div>
 
         <div id="food-modal-macro-preview" class="modal-macro-strip"></div>
+        <div id="food-modal-macro-extra" class="modal-macro-extra"></div>
 
-        <div class="modal-vitals-box">
-          <h4 class="mini-section-title">Vital Nutrient Contributions</h4>
-          <div id="food-modal-vitals-grid" class="modal-vitals-grid"></div>
+        <!-- Ingredient-by-Ingredient Recipe Editor -->
+        <div id="recipe-builder-box" class="modal-vitals-box recipe-builder-box">
+          <div class="recipe-builder-head">
+            <div>
+              <h4 class="mini-section-title" style="margin:0;">Recipe Ingredients <span id="recipe-total-weight" class="recipe-weight-chip"></span></h4>
+              <span class="subrecipe-hint">Adjust amounts (g/ml), remove ingredients, or add from the Ingredients DB — macros update live</span>
+            </div>
+          </div>
+
+          <div class="recipe-save-bar">
+            <button id="save-default-recipe-btn" type="button" class="btn btn-soft btn-xs">Save as Default</button>
+            <button id="save-preset-recipe-btn" type="button" class="btn btn-soft btn-xs">Save Preset</button>
+            <button id="reset-recipe-btn" type="button" class="btn btn-ghost btn-xs" hidden>Reset Original</button>
+          </div>
+
+          <div id="recipe-saved-wrap" class="subrecipe-saved-wrap" hidden>
+            <span class="subrecipe-micro-label">Saved presets for this recipe:</span>
+            <div id="recipe-saved-list" class="ing-pill-row"></div>
+          </div>
+
+          <div id="recipe-ingredients-list" class="recipe-ing-list"></div>
+
+          <div class="recipe-add-picker">
+            <div class="recipe-picker-head">
+              <span class="subrecipe-micro-label">Add from Ingredients DB (per 100 g / 100 ml):</span>
+              <button id="open-new-ing-from-recipe-btn" type="button" class="link-btn">+ New Ingredient</button>
+            </div>
+            <input id="recipe-ing-search" type="search" class="text-input subrecipe-input" placeholder="Search ingredients (e.g., carrots, chicken, feta, olive oil, salt)..." autocomplete="off" />
+            <div id="recipe-ing-picker-list" class="recipe-picker-list"></div>
+          </div>
         </div>
       </div>
 
@@ -609,9 +638,102 @@
             <input id="cf-fiber" type="number" class="text-input" min="0" step="0.1" value="6" />
           </div>
         </div>
+        <div class="form-grid-2">
+          <div class="form-field">
+            <label for="cf-sugar" class="field-label">Sugars (g)</label>
+            <input id="cf-sugar" type="number" class="text-input" min="0" step="0.1" value="3" />
+          </div>
+          <div class="form-field">
+            <label for="cf-salt" class="field-label">Salt (g)</label>
+            <input id="cf-salt" type="number" class="text-input" min="0" step="0.05" value="0.5" />
+          </div>
+        </div>
         <div class="modal-foot modal-foot-inline">
           <button type="button" class="btn btn-ghost" data-close-modal="custom-food-modal">Cancel</button>
           <button type="submit" class="btn btn-primary">Save &amp; Log</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: ADD CUSTOM INGREDIENT (PER 100 g / 100 ml) ==================== -->
+  <div id="custom-ingredient-modal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="custom-ing-modal-title">
+    <div class="modal-sheet">
+      <div class="modal-head">
+        <div>
+          <span class="modal-eyebrow">Ingredients Database · Per 100 g / 100 ml</span>
+          <h3 id="custom-ing-modal-title" class="modal-title">Add Custom Ingredient</h3>
+        </div>
+        <button type="button" class="modal-close-btn" data-close-modal="custom-ingredient-modal" aria-label="Close">&times;</button>
+      </div>
+      <form id="custom-ingredient-form" class="modal-body">
+        <div class="form-field">
+          <label for="ci-name" class="field-label">Ingredient Name</label>
+          <input id="ci-name" type="text" class="text-input" placeholder="e.g., Truffle Oil, Smoked Paprika, Graviera" required />
+        </div>
+        <div class="form-grid-2">
+          <div class="form-field">
+            <label for="ci-category" class="field-label">Category</label>
+            <select id="ci-category" class="select-input">
+              <option value="Meat & Poultry">Meat &amp; Poultry</option>
+              <option value="Fish & Seafood">Fish &amp; Seafood</option>
+              <option value="Dairy & Eggs">Dairy &amp; Eggs</option>
+              <option value="Vegetables" selected>Vegetables</option>
+              <option value="Herbs & Spices">Herbs &amp; Spices</option>
+              <option value="Grains & Bread">Grains &amp; Bread</option>
+              <option value="Legumes & Nuts">Legumes &amp; Nuts</option>
+              <option value="Oils & Sauces">Oils &amp; Sauces</option>
+              <option value="Fruits">Fruits</option>
+              <option value="Sweets & Drinks">Sweets &amp; Drinks</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="ci-unit" class="field-label">SI Unit &amp; Default Portion</label>
+            <div class="inline-unit-row">
+              <input id="ci-default-amount" type="number" class="text-input" min="1" step="1" value="50" required />
+              <select id="ci-unit" class="select-input">
+                <option value="g" selected>g</option>
+                <option value="ml">ml</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <span class="subrecipe-micro-label">Nutrition per 100 g / 100 ml:</span>
+        <div class="form-grid-4">
+          <div class="form-field">
+            <label for="ci-calories" class="field-label">kcal</label>
+            <input id="ci-calories" type="number" class="text-input" min="0" step="1" value="120" required />
+          </div>
+          <div class="form-field">
+            <label for="ci-protein" class="field-label">Protein (g)</label>
+            <input id="ci-protein" type="number" class="text-input" min="0" step="0.1" value="5" />
+          </div>
+          <div class="form-field">
+            <label for="ci-carbs" class="field-label">Carbs (g)</label>
+            <input id="ci-carbs" type="number" class="text-input" min="0" step="0.1" value="12" />
+          </div>
+          <div class="form-field">
+            <label for="ci-fat" class="field-label">Fat (g)</label>
+            <input id="ci-fat" type="number" class="text-input" min="0" step="0.1" value="4" />
+          </div>
+        </div>
+        <div class="form-grid-3">
+          <div class="form-field">
+            <label for="ci-sugar" class="field-label">Sugars (g)</label>
+            <input id="ci-sugar" type="number" class="text-input" min="0" step="0.1" value="2" />
+          </div>
+          <div class="form-field">
+            <label for="ci-salt" class="field-label">Salt (g)</label>
+            <input id="ci-salt" type="number" class="text-input" min="0" step="0.05" value="0.2" />
+          </div>
+          <div class="form-field">
+            <label for="ci-fiber" class="field-label">Fiber (g)</label>
+            <input id="ci-fiber" type="number" class="text-input" min="0" step="0.1" value="1.5" />
+          </div>
+        </div>
+        <div class="modal-foot modal-foot-inline">
+          <button type="button" class="btn btn-ghost" data-close-modal="custom-ingredient-modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Ingredient</button>
         </div>
       </form>
     </div>
@@ -701,6 +823,8 @@
 
   <script src="./foods-db.js"></script>
   <script src="./greek-foods-2000.js"></script>
+  <script src="./ingredients-db.js"></script>
+  <script src="./recipes-engine.js"></script>
   <script src="./nutrients.js"></script>
   <script src="./supplements.js"></script>
   <script src="./storage.js"></script>

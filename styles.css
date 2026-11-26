@@ -852,6 +852,10 @@ button {
 }
 
 .entry-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   min-width: 0;
   flex: 1;
 }
@@ -860,12 +864,14 @@ button {
   font-weight: 600;
   font-size: 0.9rem;
   display: block;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .entry-meta {
+  display: block;
   font-size: 0.77rem;
   color: var(--ink-muted);
   font-variant-numeric: tabular-nums;
@@ -1903,11 +1909,403 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   padding: 10px 12px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--rule);
   background: var(--sheet-elevated);
+}
+
+.scan-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.btn-xs {
+  font-size: 0.74rem;
+  padding: 5px 10px;
+}
+
+/* ==================== RECIPES & INGREDIENTS BUILDER ==================== */
+.foods-mode-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.modal-macro-extra {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.modal-macro-extra-cell {
+  background: var(--sheet-elevated);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  padding: 8px 6px;
+  text-align: center;
+  min-width: 0;
+}
+
+.modal-macro-extra-cell strong {
+  display: block;
+  font-size: 0.92rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.modal-macro-extra-cell span {
+  font-size: 0.72rem;
+  color: var(--ink-muted);
+  font-weight: 600;
+}
+
+.recipe-builder-box {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.recipe-builder-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.recipe-weight-chip {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  margin-left: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.recipe-save-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.subrecipe-hint {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+  margin-top: 2px;
+}
+
+.subrecipe-group,
+.subrecipe-saved-wrap {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.subrecipe-saved-wrap[hidden],
+.subrecipe-group[hidden] {
+  display: none;
+}
+
+.subrecipe-micro-label {
+  font-size: 0.73rem;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+.ing-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ing-pill {
+  border: 1px solid var(--rule-strong);
+  background: var(--sheet);
+  color: var(--ink);
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: var(--radius-pill);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.14s var(--ease);
+}
+
+.ing-pill-saved-group {
+  display: inline-flex;
+  align-items: stretch;
+  max-width: 100%;
+}
+
+.ing-pill-saved {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  max-width: calc(100% - 28px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ing-pill-saved-del {
+  border: 1px solid var(--accent);
+  border-left: none;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0 8px;
+  border-top-right-radius: var(--radius-pill);
+  border-bottom-right-radius: var(--radius-pill);
+  cursor: pointer;
+}
+
+.ing-pill-saved-del:hover {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.recipe-ing-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  min-width: 0;
+}
+
+.recipe-ing-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  min-width: 0;
+}
+
+.recipe-ing-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.recipe-ing-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.recipe-ing-name {
+  display: block;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recipe-ing-macros {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+  margin-top: 1px;
+}
+
+.recipe-ing-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.qty-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.qty-step-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--rule-strong);
+  background: var(--sheet-elevated);
+  color: var(--ink);
+  font-size: 0.95rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.qty-step-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.qty-input {
+  width: 66px;
+  padding: 4px 6px;
+  text-align: center;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-sm);
+  background: var(--sheet-elevated);
+  color: var(--ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.qty-unit {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--ink-muted);
+  min-width: 18px;
+}
+
+.ing-remove-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--ink-muted);
+  font-size: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.ing-remove-btn:hover {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.recipe-add-picker {
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--rule);
+  min-width: 0;
+}
+
+.recipe-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.recipe-picker-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  max-height: 210px;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+.picker-ing-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: var(--radius-sm);
+  background: var(--sheet);
+  border: 1px dashed var(--rule-strong);
+  min-width: 0;
+}
+
+.picker-ing-add-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.picker-qty-input {
+  width: 58px;
+  padding: 4px 6px;
+  text-align: center;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-sm);
+  background: var(--sheet-elevated);
+  color: var(--ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.subrecipe-input {
+  padding: 7px 10px;
+  font-size: 0.84rem;
+  min-width: 0;
+}
+
+.form-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.inline-unit-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px;
+  gap: 6px;
+}
+
+.entry-sub-tag {
+  display: inline-block;
+  margin-top: 3px;
+  font-size: 0.73rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entry-desc-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 2px;
+}
+
+.macro-pills-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.macro-pill {
+  font-size: 0.73rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
 }
 
 .scan-result-info {
@@ -2019,7 +2417,10 @@ button {
   /* Prevent iOS Safari automatic page zoom when focusing search/select/textarea */
   input,
   select,
-  textarea {
+  textarea,
+  .subrecipe-input,
+  .qty-input,
+  .picker-qty-input {
     font-size: 16px;
   }
 

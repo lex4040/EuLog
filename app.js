@@ -38,12 +38,28 @@
     exportJsonBackup,
     exportCsvLogs,
   } = window.EuLogStorage;
+  const {
+    INGREDIENTS_DB,
+    INGREDIENTS_BY_ID,
+    INGREDIENT_CATEGORIES,
+  } = window.EuLogIngredients;
+  const {
+    getOriginalRecipeItems,
+    resolveIngredient,
+    computeRecipeTotals,
+    summarizeRecipeChanges,
+    buildFoodFromRecipeItems,
+    ingredientToFood,
+    getFoodSaltGrams,
+  } = window.EuLogRecipes;
 
   let state = loadState();
   let activeTab = 'today';
   let selectedDateKey = todayKey();
   let weeklyEndKey = todayKey();
+  let foodsLibraryMode = 'recipes'; // 'recipes' | 'ingredients'
   let selectedFoodCategory = 'All';
+  let selectedIngredientCategory = 'All';
   let foodsSearchQuery = '';
   let foodsSortBy = 'name';
   let expandedNutrientKey = null;
@@ -51,6 +67,10 @@
 
   // Modal state
   let activeModalFood = null;
+  let activeRecipeOriginalItems = [];
+  let activeRecipeItems = [];
+  let recipePickerQuery = '';
+  let editingEntryId = null;
   let pendingMealTarget = guessDefaultMeal();
   let deferredInstallPrompt = null;
   let toastTimer = null;
@@ -78,9 +98,39 @@
     return [...(state.customFoods || []), ...USDA_FOODS];
   }
 
+  function getAllIngredients() {
+    return [...(state.customIngredients || []), ...INGREDIENTS_DB];
+  }
+
+  function findIngredientById(id) {
+    if (INGREDIENTS_BY_ID[id]) return INGREDIENTS_BY_ID[id];
+    return (state.customIngredients || []).find((i) => i.id === id) || null;
+  }
+
   function findFoodById(id) {
+    if (!id) return null;
+    if (String(id).startsWith('ing:')) {
+      const ing = findIngredientById(String(id).slice(4));
+      return ing ? ingredientToFood(ing) : null;
+    }
     if (USDA_FOODS_BY_ID[id]) return USDA_FOODS_BY_ID[id];
     return (state.customFoods || []).find((f) => f.id === id) || null;
+  }
+
+  function cloneRecipeItems(items = []) {
+    return (items || []).map((it) => ({
+      ingredientId: it.ingredientId,
+      amount: Number(it.amount) || 0,
+      ...(it.inlineIngredient ? { inlineIngredient: { ...it.inlineIngredient, nutrients: { ...(it.inlineIngredient.nutrients || {}) } } } : {}),
+    }));
+  }
+
+  function getEffectiveFoodForLog(food) {
+    if (!food) return null;
+    const origItems = getOriginalRecipeItems(food);
+    const savedDefault = state.defaultRecipes?.[food.id];
+    const items = Array.isArray(savedDefault) && savedDefault.length > 0 ? cloneRecipeItems(savedDefault) : origItems;
+    return buildFoodFromRecipeItems(food, items, state.customIngredients, origItems);
   }
 
   function persist() {
@@ -234,18 +284,33 @@
                 const f = Math.round((food.fat || 0) * mult);
                 const multStr = mult === 1 ? food.serving : `${mult}× ${food.serving}`;
                 const desc = food.description || liveFood?.description || `${food.name} (${food.category || 'Food'}).`;
+                const summaryBadge = food.recipeSummary || food.subRecipe?.summary || '';
+                const subTagHtml = summaryBadge
+                  ? `<span class="entry-sub-tag">${escapeHtml(summaryBadge)}</span>`
+                  : '';
                 const isExpanded = expandedEntryId === entry.id;
                 let expandedHtml = '';
                 if (isExpanded) {
-                  const nuts = food.nutrients || liveFood?.nutrients || {};
-                  const topVitals = VITAL_NUTRIENTS.filter((v) => (nuts[v.key] || 0) * mult > 0)
-                    .slice(0, 5)
-                    .map((v) => `<span class="micro-badge">${escapeHtml(v.short)} ${formatNutrientValue(nuts[v.key] * mult, v.unit)}</span>`)
-                    .join('');
+                  const pExact = ((Number(food.protein) || 0) * mult).toFixed(1);
+                  const cExact = ((Number(food.carbs) || 0) * mult).toFixed(1);
+                  const sugExact = ((Number(food.sugar) || 0) * mult).toFixed(1);
+                  const fExact = ((Number(food.fat) || 0) * mult).toFixed(1);
+                  const saltExact = (getFoodSaltGrams(food) * mult).toFixed(2);
+                  const fibExact = ((Number(food.fiber) || 0) * mult).toFixed(1);
                   expandedHtml = `
                     <div class="entry-desc-box">
                       <p class="entry-desc-text">${escapeHtml(desc)}</p>
-                      ${topVitals ? `<div class="supp-nut-badges">${topVitals}</div>` : ''}
+                      <div class="macro-pills-row">
+                        <span class="macro-pill">Protein ${pExact} g</span>
+                        <span class="macro-pill">Carbs ${cExact} g</span>
+                        <span class="macro-pill">Sugars ${sugExact} g</span>
+                        <span class="macro-pill">Fat ${fExact} g</span>
+                        <span class="macro-pill">Salt ${saltExact} g</span>
+                        <span class="macro-pill">Fiber ${fibExact} g</span>
+                      </div>
+                      <div class="entry-desc-actions">
+                        <button type="button" class="btn btn-soft btn-xs" data-edit-entry="${escapeHtml(entry.id)}">Edit Ingredients</button>
+                      </div>
                     </div>
                   `;
                 }
@@ -255,6 +320,7 @@
                       <div class="entry-main">
                         <span class="entry-name">${escapeHtml(food.name)}</span>
                         <span class="entry-meta">${escapeHtml(multStr)} · ${p}g P · ${c}g C · ${f}g F</span>
+                        ${subTagHtml}
                       </div>
                       <div class="entry-right">
                         <span class="entry-cal">${kcal} kcal</span>
@@ -305,8 +371,11 @@
         carbs: food.carbs,
         fat: food.fat,
         fiber: food.fiber,
-        sugar: food.sugar,
+        sugar: food.sugar || 0,
+        salt: getFoodSaltGrams(food),
         nutrients: { ...(food.nutrients || {}) },
+        recipeItems: Array.isArray(food.recipeItems) ? cloneRecipeItems(food.recipeItems) : null,
+        recipeSummary: food.recipeSummary || '',
       },
     });
     persist();
@@ -338,7 +407,15 @@
         ...entry,
         id: makeId('entry'),
         createdAt: new Date().toISOString(),
-        snapshot: entry.snapshot ? { ...entry.snapshot, nutrients: { ...(entry.snapshot.nutrients || {}) } } : undefined,
+        snapshot: entry.snapshot
+          ? {
+              ...entry.snapshot,
+              nutrients: { ...(entry.snapshot.nutrients || {}) },
+              recipeItems: Array.isArray(entry.snapshot.recipeItems)
+                ? cloneRecipeItems(entry.snapshot.recipeItems)
+                : null,
+            }
+          : undefined,
       });
     }
     persist();
@@ -599,16 +676,94 @@
       .join('');
   }
 
-  /* ==================== TAB 4: FOODS LIBRARY (2,154+ FOODS) ==================== */
+  /* ==================== TAB 4: RECIPES & INGREDIENTS LIBRARY ==================== */
   let foodsRenderLimit = 80;
 
   function renderFoodsLibrary() {
+    $('foods-mode-recipes-btn')?.classList.toggle('is-active', foodsLibraryMode === 'recipes');
+    $('foods-mode-ingredients-btn')?.classList.toggle('is-active', foodsLibraryMode === 'ingredients');
+
+    const customBtn = $('open-custom-food-btn');
+    const searchInput = $('foods-search-input');
+
+    if (foodsLibraryMode === 'ingredients') {
+      const allIngs = getAllIngredients();
+      const customIngCount = (state.customIngredients || []).length;
+      if (customBtn) customBtn.textContent = '+ Custom Ingredient';
+      if (searchInput) searchInput.placeholder = `Search ${allIngs.length} ingredients (per 100 g / 100 ml)...`;
+      $('foods-count-subtitle').textContent =
+        customIngCount > 0
+          ? `${INGREDIENTS_DB.length} SI ingredients + ${customIngCount} custom ingredients (per 100 g / 100 ml)`
+          : `${INGREDIENTS_DB.length} raw & cooking ingredients database (per 100 g / 100 ml SI)`;
+
+      const ingChips = ['All', ...(customIngCount > 0 ? ['Custom'] : []), ...INGREDIENT_CATEGORIES.slice(1)];
+      $('foods-category-chips').innerHTML = ingChips
+        .map(
+          (cat) => `
+        <button type="button" class="cat-chip ${selectedIngredientCategory === cat ? 'is-active' : ''}" data-ing-cat="${escapeHtml(cat)}">
+          ${escapeHtml(cat)}
+        </button>
+      `
+        )
+        .join('');
+
+      const q = foodsSearchQuery.trim().toLowerCase();
+      let filtered = allIngs.filter((ing) => {
+        if (selectedIngredientCategory === 'Custom' && !ing.isCustom) return false;
+        if (selectedIngredientCategory !== 'All' && selectedIngredientCategory !== 'Custom' && ing.category !== selectedIngredientCategory) {
+          return false;
+        }
+        if (q) {
+          return `${ing.name} ${ing.category}`.toLowerCase().includes(q);
+        }
+        return true;
+      });
+
+      filtered.sort((a, b) => {
+        if (foodsSortBy === 'name') return a.name.localeCompare(b.name);
+        if (foodsSortBy === 'protein') return (b.protein || 0) - (a.protein || 0);
+        if (foodsSortBy === 'fiber') return (b.fiber || 0) - (a.fiber || 0);
+        if (foodsSortBy === 'cal-asc') return (a.calories || 0) - (b.calories || 0);
+        if (foodsSortBy === 'carbs-asc') return (a.carbs || 0) - (b.carbs || 0);
+        if (foodsSortBy === 'sugar-asc') return (a.sugar || 0) - (b.sugar || 0);
+        if (foodsSortBy === 'salt-asc') return (a.salt || 0) - (b.salt || 0);
+        return a.name.localeCompare(b.name);
+      });
+
+      const listEl = $('foods-list');
+      if (filtered.length === 0) {
+        listEl.innerHTML = '<div class="sheet-card"><p class="section-subtitle">No matching ingredients found. Tap "+ Custom Ingredient" to add one.</p></div>';
+        return;
+      }
+
+      listEl.innerHTML = filtered
+        .map(
+          (ing) => `
+          <article class="food-card">
+            <div class="food-card-main">
+              <span class="food-card-name">${escapeHtml(ing.name)}</span>
+              <span class="food-card-serving">Per 100 ${escapeHtml(ing.unit || 'g')} · ${escapeHtml(ing.category)}</span>
+              <div class="food-card-macros">${Math.round(ing.calories)} kcal · ${ing.protein}g P · ${ing.carbs}g C · ${ing.sugar}g Sugars · ${ing.fat}g F · ${ing.salt}g Salt</div>
+            </div>
+            <div class="food-card-actions">
+              <button type="button" class="btn btn-soft btn-sm" data-open-ingredient-id="${escapeHtml(ing.id)}">+ Log</button>
+            </div>
+          </article>
+        `
+        )
+        .join('');
+      return;
+    }
+
+    // Recipes mode
     const allFoods = getAllFoods();
     const customCount = (state.customFoods || []).length;
+    if (customBtn) customBtn.textContent = '+ Custom Food';
+    if (searchInput) searchInput.placeholder = 'Search 2,154 recipes (e.g., avgolemono, gyros, moussaka, salmon)...';
     $('foods-count-subtitle').textContent =
       customCount > 0
-        ? `${USDA_FOODS.length.toLocaleString()} USDA & Greek foods + ${customCount} custom foods`
-        : `${USDA_FOODS.length.toLocaleString()} deduplicated USDA & Greek foods with full micronutrient profiles`;
+        ? `${USDA_FOODS.length.toLocaleString()} customizable recipes + ${customCount} custom · ${getAllIngredients().length} ingredients DB`
+        : `${USDA_FOODS.length.toLocaleString()} customizable recipes · ${getAllIngredients().length} ingredients DB`;
 
     const chips = ['All', 'Favorites', ...(customCount > 0 ? ['Custom'] : []), ...USDA_CATEGORIES.slice(1)];
     $('foods-category-chips').innerHTML = chips
@@ -647,33 +802,35 @@
       if (foodsSortBy === 'protein') return (b.protein || 0) - (a.protein || 0);
       if (foodsSortBy === 'fiber') return (b.fiber || 0) - (a.fiber || 0);
       if (foodsSortBy === 'cal-asc') return (a.calories || 0) - (b.calories || 0);
-      return (b.nutrients?.[foodsSortBy] || 0) - (a.nutrients?.[foodsSortBy] || 0);
+      if (foodsSortBy === 'carbs-asc') return (a.carbs || 0) - (b.carbs || 0);
+      if (foodsSortBy === 'sugar-asc') return (a.sugar || 0) - (b.sugar || 0);
+      if (foodsSortBy === 'salt-asc') return getFoodSaltGrams(a) - getFoodSaltGrams(b);
+      return a.name.localeCompare(b.name);
     });
 
     const listEl = $('foods-list');
     if (filtered.length === 0) {
-      listEl.innerHTML = '<div class="sheet-card"><p class="section-subtitle">No matching foods found. Try a different term or add a Custom Food.</p></div>';
+      listEl.innerHTML = '<div class="sheet-card"><p class="section-subtitle">No matching recipes found. Try a different term or add a Custom Food.</p></div>';
       return;
     }
 
     const visible = filtered.slice(0, foodsRenderLimit);
     const cardsHtml = visible
-      .map((f) => {
-        const isFav = favSet.has(f.id);
-        const sortHighlight =
-          !['name', 'protein', 'fiber', 'cal-asc'].includes(foodsSortBy) && f.nutrients?.[foodsSortBy]
-            ? ` · <strong>${formatNutrientValue(f.nutrients[foodsSortBy], VITAL_NUTRIENTS.find((v) => v.key === foodsSortBy)?.unit || '')}</strong>`
-            : '';
+      .map((baseFood) => {
+        const isFav = favSet.has(baseFood.id);
+        const hasCustomDefault = Boolean(state.defaultRecipes?.[baseFood.id]?.length);
+        const f = getEffectiveFoodForLog(baseFood);
+        const saltVal = getFoodSaltGrams(f).toFixed(1);
         return `
           <article class="food-card">
             <div class="food-card-main">
               <span class="food-card-name">${escapeHtml(f.name)}</span>
-              <span class="food-card-serving">${escapeHtml(f.serving)} · ${escapeHtml(f.category)}</span>
-              <div class="food-card-macros">${Math.round(f.calories)} kcal · ${f.protein}g P · ${f.carbs}g C · ${f.fat}g F${sortHighlight}</div>
+              <span class="food-card-serving">${escapeHtml(f.serving)} · ${escapeHtml(f.category)}${hasCustomDefault ? ' · Custom Default' : ''}</span>
+              <div class="food-card-macros">${Math.round(f.calories)} kcal · ${f.protein}g P · ${f.carbs}g C · ${f.sugar}g Sugars · ${f.fat}g F · ${saltVal}g Salt</div>
             </div>
             <div class="food-card-actions">
-              <button type="button" class="star-btn ${isFav ? 'is-fav' : ''}" data-toggle-fav="${escapeHtml(f.id)}" aria-label="Favorite ${escapeHtml(f.name)}">${isFav ? '★' : '☆'}</button>
-              <button type="button" class="btn btn-soft btn-sm" data-open-food-id="${escapeHtml(f.id)}">+ Log</button>
+              <button type="button" class="star-btn ${isFav ? 'is-fav' : ''}" data-toggle-fav="${escapeHtml(baseFood.id)}" aria-label="Favorite ${escapeHtml(f.name)}">${isFav ? '★' : '☆'}</button>
+              <button type="button" class="btn btn-soft btn-sm" data-open-food-id="${escapeHtml(baseFood.id)}">+ Log</button>
             </div>
           </article>
         `;
@@ -701,28 +858,54 @@
     const el = $(id);
     if (!el) return;
     if (id === 'scan-modal') stopLiveCamera();
+    if (id === 'food-log-modal') editingEntryId = null;
     el.hidden = true;
     const anyOpen = [...document.querySelectorAll('.modal-backdrop')].some((m) => !m.hidden);
     if (!anyOpen) document.body.style.overflow = '';
   }
 
-  /* ==================== FOOD LOG DETAIL MODAL ==================== */
-  function openFoodLogModal(foodId, mealOverride) {
-    const food = findFoodById(foodId);
+  /* ==================== FOOD / RECIPE CUSTOMIZATION MODAL ==================== */
+  function getEffectiveModalFood() {
+    if (!activeModalFood) return null;
+    return buildFoodFromRecipeItems(
+      activeModalFood,
+      activeRecipeItems,
+      state.customIngredients,
+      activeRecipeOriginalItems
+    );
+  }
+
+  function openFoodLogModal(foodId, mealOverride, existingEntry = null) {
+    const food = findFoodById(foodId) || existingEntry?.snapshot;
     if (!food) return;
     activeModalFood = food;
+    editingEntryId = existingEntry ? existingEntry.id : null;
+    recipePickerQuery = '';
+
+    activeRecipeOriginalItems = getOriginalRecipeItems(food);
+    if (existingEntry?.snapshot?.recipeItems?.length) {
+      activeRecipeItems = cloneRecipeItems(existingEntry.snapshot.recipeItems);
+    } else if (state.defaultRecipes?.[food.id]?.length) {
+      activeRecipeItems = cloneRecipeItems(state.defaultRecipes[food.id]);
+    } else {
+      activeRecipeItems = cloneRecipeItems(activeRecipeOriginalItems);
+    }
 
     $('food-modal-category').textContent = food.isCustom ? 'Custom Food' : `${food.category}`;
     $('food-modal-title').textContent = food.name;
-    $('food-modal-desc').textContent = food.description || '';
-    $('food-modal-serving').textContent = food.serving;
-    $('log-meal-select').value = mealOverride || pendingMealTarget || guessDefaultMeal();
-    $('log-servings-input').value = '1';
+    $('log-meal-select').value = existingEntry
+      ? existingEntry.meal
+      : mealOverride || pendingMealTarget || guessDefaultMeal();
+    const servVal = existingEntry ? String(existingEntry.servings || 1) : '1';
+    $('log-servings-input').value = servVal;
+    $('recipe-ing-search').value = '';
+    $('food-modal-submit-btn').textContent = editingEntryId ? 'Save Changes' : 'Add to Day';
 
     document.querySelectorAll('.preset-mult-btn').forEach((b) => {
-      b.classList.toggle('is-active', b.dataset.mult === '1');
+      b.classList.toggle('is-active', b.dataset.mult === servVal);
     });
 
+    renderRecipeEditor();
     updateFoodModalPreview();
     updateFoodModalFavButton();
     openModal('food-log-modal');
@@ -734,25 +917,228 @@
     $('food-modal-fav-btn').textContent = isFav ? '★ Favorited' : '☆ Favorite';
   }
 
+  function renderRecipeEditor() {
+    if (!activeModalFood) return;
+    const totals = computeRecipeTotals(activeRecipeItems, state.customIngredients);
+    const changeSummary = summarizeRecipeChanges(
+      activeRecipeOriginalItems,
+      activeRecipeItems,
+      state.customIngredients
+    );
+    const hasCustomDefault = Boolean(state.defaultRecipes?.[activeModalFood.id]?.length);
+
+    $('recipe-total-weight').textContent = `${totals.totalAmount} g`;
+    $('reset-recipe-btn').hidden = !changeSummary && !hasCustomDefault;
+
+    // Saved presets for this recipe
+    const savedList = state.savedRecipes?.[activeModalFood.id] || [];
+    const savedWrap = $('recipe-saved-wrap');
+    if (savedList.length > 0) {
+      savedWrap.hidden = false;
+      $('recipe-saved-list').innerHTML = savedList
+        .map(
+          (preset) => `
+          <span class="ing-pill-saved-group">
+            <button type="button" class="ing-pill ing-pill-saved" data-apply-recipe-preset="${escapeHtml(preset.id)}">${escapeHtml(preset.label)}</button>
+            <button type="button" class="ing-pill-saved-del" data-delete-recipe-preset="${escapeHtml(preset.id)}" aria-label="Delete preset">&times;</button>
+          </span>
+        `
+        )
+        .join('');
+    } else {
+      savedWrap.hidden = true;
+      $('recipe-saved-list').innerHTML = '';
+    }
+
+    // Active editable ingredient rows
+    const listEl = $('recipe-ingredients-list');
+    if (activeRecipeItems.length === 0) {
+      listEl.innerHTML =
+        '<p class="section-subtitle" style="margin:2px 0;">No ingredients left — add ingredients below from the Ingredients DB.</p>';
+    } else {
+      listEl.innerHTML = activeRecipeItems
+        .map((item, idx) => {
+          const ing = resolveIngredient(item, state.customIngredients);
+          if (!ing) return '';
+          const unit = ing.unit || 'g';
+          const amt = Number(item.amount) || 0;
+          const ratio = amt / 100;
+          const kcal = Math.round((Number(ing.calories) || 0) * ratio);
+          const p = ((Number(ing.protein) || 0) * ratio).toFixed(1);
+          const c = ((Number(ing.carbs) || 0) * ratio).toFixed(1);
+          const sug = ((Number(ing.sugar) || 0) * ratio).toFixed(1);
+          const salt = ((Number(ing.salt) || 0) * ratio).toFixed(2);
+          const step = item.ingredientId === 'table-salt' || amt < 5 ? 0.5 : amt <= 25 ? 5 : 10;
+          return `
+            <div class="recipe-ing-row">
+              <div class="recipe-ing-top">
+                <div class="recipe-ing-info">
+                  <span class="recipe-ing-name">${escapeHtml(ing.name)}</span>
+                  <span class="recipe-ing-macros">${kcal} kcal · ${p}g P · ${c}g C · ${sug}g Sugars · ${salt}g Salt</span>
+                </div>
+                <button type="button" class="ing-remove-btn" data-ing-remove-idx="${idx}" aria-label="Remove ${escapeHtml(ing.name)}">&times;</button>
+              </div>
+              <div class="recipe-ing-controls">
+                <div class="qty-stepper">
+                  <button type="button" class="qty-step-btn" data-ing-step-idx="${idx}" data-ing-step-delta="${-step}" aria-label="Decrease amount">&minus;</button>
+                  <input type="number" class="qty-input" data-ing-qty-idx="${idx}" min="0" max="2000" step="any" value="${amt}" aria-label="${escapeHtml(ing.name)} amount" />
+                  <button type="button" class="qty-step-btn" data-ing-step-idx="${idx}" data-ing-step-delta="${step}" aria-label="Increase amount">+</button>
+                  <span class="qty-unit">${escapeHtml(unit)}</span>
+                </div>
+                <span class="entry-meta">${Math.round(ing.calories)} kcal / 100${escapeHtml(unit)}</span>
+              </div>
+            </div>
+          `;
+        })
+        .join('');
+    }
+
+    renderRecipePickerList();
+  }
+
+  function renderRecipePickerList() {
+    const pickerEl = $('recipe-ing-picker-list');
+    if (!pickerEl) return;
+    const q = recipePickerQuery.trim().toLowerCase();
+    const allIngs = getAllIngredients();
+    const popularIds = [
+      'olive-oil',
+      'feta-cheese',
+      'chicken-breast',
+      'whole-egg',
+      'carrots',
+      'tomato',
+      'avocado',
+      'tzatziki',
+      'lemon-juice',
+      'fresh-dill',
+      'white-rice-cooked',
+      'table-salt',
+    ];
+
+    let matches;
+    if (q) {
+      matches = allIngs
+        .filter((ing) => `${ing.name} ${ing.category}`.toLowerCase().includes(q))
+        .slice(0, 12);
+    } else {
+      const existingSet = new Set(activeRecipeItems.map((it) => it.ingredientId));
+      matches = popularIds
+        .map((id) => findIngredientById(id))
+        .filter((ing) => ing && !existingSet.has(ing.id))
+        .slice(0, 6);
+    }
+
+    if (matches.length === 0) {
+      pickerEl.innerHTML =
+        '<p class="section-subtitle" style="margin:2px 0;">No ingredient matched. Tap "+ New Ingredient" above to add it to the Ingredients DB.</p>';
+      return;
+    }
+
+    pickerEl.innerHTML = matches
+      .map((ing) => {
+        const unit = ing.unit || 'g';
+        return `
+          <div class="picker-ing-row">
+            <div class="recipe-ing-info">
+              <span class="recipe-ing-name">${escapeHtml(ing.name)}</span>
+              <span class="recipe-ing-macros">${Math.round(ing.calories)} kcal · ${ing.protein}g P · ${ing.carbs}g C · ${ing.sugar}g Sugars · ${ing.salt}g Salt / 100${escapeHtml(unit)}</span>
+            </div>
+            <div class="picker-ing-add-wrap">
+              <input type="number" class="picker-qty-input" data-picker-qty-for="${escapeHtml(ing.id)}" min="0.5" max="1000" step="any" value="${ing.defaultAmount || 50}" aria-label="Amount in ${escapeHtml(unit)}" />
+              <span class="qty-unit">${escapeHtml(unit)}</span>
+              <button type="button" class="btn btn-soft btn-xs" data-picker-add-ing="${escapeHtml(ing.id)}">+ Add</button>
+            </div>
+          </div>
+        `;
+      })
+      .join('');
+  }
+
+  function addIngredientToActiveRecipe(ingredientId, customAmount) {
+    const ing = findIngredientById(ingredientId);
+    if (!ing) return;
+    const amt = Math.max(0.5, Number(customAmount) || ing.defaultAmount || 50);
+    const existing = activeRecipeItems.find((it) => it.ingredientId === ing.id);
+    if (existing) {
+      existing.amount = Number((Number(existing.amount) + amt).toFixed(1));
+    } else {
+      activeRecipeItems.push({ ingredientId: ing.id, amount: amt });
+    }
+    recipePickerQuery = '';
+    if ($('recipe-ing-search')) $('recipe-ing-search').value = '';
+    renderRecipeEditor();
+    updateFoodModalPreview();
+    showToast(`Added ${ing.name} (${amt} ${ing.unit || 'g'})`);
+  }
+
+  function saveAsDefaultRecipe() {
+    if (!activeModalFood) return;
+    if (!state.defaultRecipes) state.defaultRecipes = {};
+    state.defaultRecipes[activeModalFood.id] = cloneRecipeItems(activeRecipeItems);
+    persist();
+    renderRecipeEditor();
+    if (activeTab === 'foods') renderFoodsLibrary();
+    showToast(`Saved default recipe for ${activeModalFood.name}`);
+  }
+
+  function saveRecipePreset() {
+    if (!activeModalFood) return;
+    if (!state.savedRecipes) state.savedRecipes = {};
+    if (!Array.isArray(state.savedRecipes[activeModalFood.id])) {
+      state.savedRecipes[activeModalFood.id] = [];
+    }
+    const summary = summarizeRecipeChanges(
+      activeRecipeOriginalItems,
+      activeRecipeItems,
+      state.customIngredients
+    );
+    const existingList = state.savedRecipes[activeModalFood.id];
+    const label = summary || `Custom Version #${existingList.length + 1}`;
+    existingList.unshift({
+      id: makeId('rec'),
+      label,
+      items: cloneRecipeItems(activeRecipeItems),
+    });
+    persist();
+    renderRecipeEditor();
+    showToast(`Saved preset: ${label}`);
+  }
+
+  function resetCurrentRecipe() {
+    if (!activeModalFood) return;
+    if (state.defaultRecipes && state.defaultRecipes[activeModalFood.id]) {
+      delete state.defaultRecipes[activeModalFood.id];
+    }
+    activeRecipeItems = cloneRecipeItems(activeRecipeOriginalItems);
+    persist();
+    renderRecipeEditor();
+    updateFoodModalPreview();
+    if (activeTab === 'foods') renderFoodsLibrary();
+    showToast('Reset to original recipe');
+  }
+
   function updateFoodModalPreview() {
     if (!activeModalFood) return;
     const mult = Math.max(0.1, Number($('log-servings-input').value) || 1);
-    const f = activeModalFood;
+    const f = getEffectiveModalFood();
+    if (!f) return;
+
+    $('food-modal-desc').textContent = f.description || '';
+    $('food-modal-serving').textContent = f.serving;
 
     $('food-modal-macro-preview').innerHTML = `
       <div class="modal-macro-cell"><strong>${Math.round(f.calories * mult)}</strong><span>kcal</span></div>
-      <div class="modal-macro-cell"><strong>${(f.protein * mult).toFixed(1)}g</strong><span>Protein</span></div>
-      <div class="modal-macro-cell"><strong>${(f.carbs * mult).toFixed(1)}g</strong><span>Carbs</span></div>
-      <div class="modal-macro-cell"><strong>${(f.fat * mult).toFixed(1)}g</strong><span>Fat</span></div>
+      <div class="modal-macro-cell"><strong>${(f.protein * mult).toFixed(1)} g</strong><span>Protein</span></div>
+      <div class="modal-macro-cell"><strong>${(f.carbs * mult).toFixed(1)} g</strong><span>Carbs</span></div>
+      <div class="modal-macro-cell"><strong>${(f.fat * mult).toFixed(1)} g</strong><span>Fat</span></div>
     `;
 
-    const nuts = f.nutrients || {};
-    const badges = VITAL_NUTRIENTS.filter((v) => (nuts[v.key] || 0) * mult > 0)
-      .map((v) => `<span class="micro-badge">${escapeHtml(v.short)} ${formatNutrientValue(nuts[v.key] * mult, v.unit)}</span>`)
-      .join('');
-
-    $('food-modal-vitals-grid').innerHTML =
-      badges || '<span class="section-subtitle">No micronutrient data recorded for this custom item.</span>';
+    $('food-modal-macro-extra').innerHTML = `
+      <div class="modal-macro-extra-cell"><strong>${((f.sugar || 0) * mult).toFixed(1)} g</strong><span>Sugars</span></div>
+      <div class="modal-macro-extra-cell"><strong>${(getFoodSaltGrams(f) * mult).toFixed(2)} g</strong><span>Salt</span></div>
+      <div class="modal-macro-extra-cell"><strong>${((f.fiber || 0) * mult).toFixed(1)} g</strong><span>Fiber</span></div>
+    `;
   }
 
   /* ==================== ON-DEVICE SIGLIP PHOTO SCAN MODAL ==================== */
@@ -848,12 +1234,13 @@
 
       $('scan-engine-note').textContent =
         output.engine === 'siglip'
-          ? `Matched across all ${output.totalFoods || USDA_FOODS.length} USDA foods`
+          ? `Matched across all ${output.totalFoods || USDA_FOODS.length} recipes`
           : 'Connect once to cache 60 MB SigLIP Vision weights';
 
       const maxScore = Math.max(1e-9, ...output.results.map((r) => r.score));
       $('scan-results-list').innerHTML = output.results
-        .map(({ food, score }, idx) => {
+        .map(({ food: rawFood, score }, idx) => {
+          const food = getEffectiveFoodForLog(rawFood);
           const relPct = Math.max(18, Math.min(100, Math.round((score / maxScore) * 100)));
           const dispPct =
             output.engine === 'siglip'
@@ -866,10 +1253,13 @@
                   <strong>${escapeHtml(food.name)}</strong>
                   <span class="entry-meta">${idx === 0 ? '★ ' : ''}${dispPct} · ${Math.round(food.calories)} kcal</span>
                 </div>
-                <span class="entry-meta">${escapeHtml(food.serving)} · ${food.protein}g P · ${food.carbs}g C · ${food.fat}g F</span>
+                <span class="entry-meta">${escapeHtml(food.serving)} · ${food.protein}g P · ${food.carbs}g C · ${food.sugar}g Sug · ${getFoodSaltGrams(food).toFixed(1)}g Salt</span>
                 <div class="scan-conf-bar"><div class="scan-conf-fill" style="width:${relPct}%"></div></div>
               </div>
-              <button type="button" class="btn btn-primary btn-sm" data-scan-log-id="${escapeHtml(food.id)}">+ Log</button>
+              <div class="scan-row-actions">
+                <button type="button" class="btn btn-soft btn-xs" data-scan-custom-id="${escapeHtml(rawFood.id)}">Edit</button>
+                <button type="button" class="btn btn-primary btn-xs" data-scan-log-id="${escapeHtml(rawFood.id)}">+ Log</button>
+              </div>
             </div>
           `;
         })
@@ -1064,8 +1454,18 @@
       renderFoodsLibrary();
     });
     $('open-custom-food-btn').addEventListener('click', () => {
-      $('custom-food-form').reset();
-      openModal('custom-food-modal');
+      if (foodsLibraryMode === 'ingredients') {
+        $('custom-ingredient-form').reset();
+        openModal('custom-ingredient-modal');
+      } else {
+        $('custom-food-form').reset();
+        openModal('custom-food-modal');
+      }
+    });
+
+    $('open-new-ing-from-recipe-btn').addEventListener('click', () => {
+      $('custom-ingredient-form').reset();
+      openModal('custom-ingredient-modal');
     });
 
     $('custom-food-form').addEventListener('submit', (e) => {
@@ -1073,6 +1473,7 @@
       const name = $('cf-name').value.trim();
       const serving = $('cf-serving').value.trim();
       if (!name || !serving) return;
+      const saltVal = Number($('cf-salt').value) || 0;
 
       const customFood = {
         id: makeId('cfood'),
@@ -1085,8 +1486,10 @@
         carbs: Number($('cf-carbs').value) || 0,
         fat: Number($('cf-fat').value) || 0,
         fiber: Number($('cf-fiber').value) || 0,
-        sugar: 0,
-        nutrients: {},
+        sugar: Number($('cf-sugar').value) || 0,
+        salt: saltVal,
+        description: `${name} — custom recipe (${serving}).`,
+        nutrients: { sodium: Math.round((saltVal / 2.5) * 1000) },
         prompt: name.toLowerCase(),
         colorHint: 'brown',
         isCustom: true,
@@ -1094,11 +1497,45 @@
       state.customFoods.unshift(customFood);
       persist();
       closeModal('custom-food-modal');
-      logFoodEntry(customFood, pendingMealTarget || guessDefaultMeal(), 1, selectedDateKey);
+      logFoodEntry(getEffectiveFoodForLog(customFood), pendingMealTarget || guessDefaultMeal(), 1, selectedDateKey);
       if (activeTab === 'foods') renderFoodsLibrary();
     });
 
-    // Food log modal controls
+    $('custom-ingredient-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = $('ci-name').value.trim();
+      if (!name) return;
+      const saltVal = Number($('ci-salt').value) || 0;
+      const newIng = {
+        id: makeId('cing'),
+        name,
+        category: $('ci-category').value || 'Vegetables',
+        unit: $('ci-unit').value === 'ml' ? 'ml' : 'g',
+        defaultAmount: Math.max(1, Number($('ci-default-amount').value) || 50),
+        calories: Number($('ci-calories').value) || 0,
+        protein: Number($('ci-protein').value) || 0,
+        carbs: Number($('ci-carbs').value) || 0,
+        fat: Number($('ci-fat').value) || 0,
+        sugar: Number($('ci-sugar').value) || 0,
+        salt: saltVal,
+        fiber: Number($('ci-fiber').value) || 0,
+        nutrients: { sodium: Math.round((saltVal / 2.5) * 1000) },
+        isCustom: true,
+      };
+      if (!Array.isArray(state.customIngredients)) state.customIngredients = [];
+      state.customIngredients.unshift(newIng);
+      persist();
+      closeModal('custom-ingredient-modal');
+
+      if (!$('food-log-modal').hidden && activeModalFood) {
+        addIngredientToActiveRecipe(newIng.id, newIng.defaultAmount);
+      } else {
+        if (activeTab === 'foods') renderFoodsLibrary();
+        showToast(`Added ${name} to Ingredients DB`);
+      }
+    });
+
+    // Food / Recipe modal controls
     $('log-servings-input').addEventListener('input', () => {
       const val = $('log-servings-input').value;
       document.querySelectorAll('.preset-mult-btn').forEach((b) => {
@@ -1113,6 +1550,42 @@
         updateFoodModalPreview();
       });
     });
+    $('save-default-recipe-btn').addEventListener('click', saveAsDefaultRecipe);
+    $('save-preset-recipe-btn').addEventListener('click', saveRecipePreset);
+    $('reset-recipe-btn').addEventListener('click', resetCurrentRecipe);
+
+    $('recipe-ing-search').addEventListener('input', (e) => {
+      recipePickerQuery = e.target.value;
+      renderRecipePickerList();
+    });
+
+    $('recipe-ingredients-list').addEventListener('input', (e) => {
+      const inp = e.target.closest('[data-ing-qty-idx]');
+      if (!inp) return;
+      const idx = Number(inp.dataset.ingQtyIdx);
+      if (!Number.isInteger(idx) || !activeRecipeItems[idx]) return;
+      const val = Math.max(0, Number(inp.value) || 0);
+      activeRecipeItems[idx].amount = val;
+      const ing = resolveIngredient(activeRecipeItems[idx], state.customIngredients);
+      const row = inp.closest('.recipe-ing-row');
+      if (ing && row) {
+        const ratio = val / 100;
+        const macEl = row.querySelector('.recipe-ing-macros');
+        if (macEl) {
+          macEl.textContent = `${Math.round((Number(ing.calories) || 0) * ratio)} kcal · ${((Number(ing.protein) || 0) * ratio).toFixed(1)}g P · ${((Number(ing.carbs) || 0) * ratio).toFixed(1)}g C · ${((Number(ing.sugar) || 0) * ratio).toFixed(1)}g Sugars · ${((Number(ing.salt) || 0) * ratio).toFixed(2)}g Salt`;
+        }
+      }
+      const totals = computeRecipeTotals(activeRecipeItems, state.customIngredients);
+      $('recipe-total-weight').textContent = `${totals.totalAmount} g`;
+      const changeSummary = summarizeRecipeChanges(
+        activeRecipeOriginalItems,
+        activeRecipeItems,
+        state.customIngredients
+      );
+      $('reset-recipe-btn').hidden = !changeSummary && !state.defaultRecipes?.[activeModalFood?.id]?.length;
+      updateFoodModalPreview();
+    });
+
     $('food-modal-fav-btn').addEventListener('click', () => {
       if (!activeModalFood) return;
       toggleFavorite(activeModalFood.id);
@@ -1121,9 +1594,43 @@
     $('food-modal-submit-btn').addEventListener('click', () => {
       if (!activeModalFood) return;
       const meal = $('log-meal-select').value;
-      const servings = Number($('log-servings-input').value) || 1;
+      const servings = Math.max(0.1, Number($('log-servings-input').value) || 1);
+      const effectiveFood = getEffectiveModalFood();
       pendingMealTarget = meal;
-      logFoodEntry(activeModalFood, meal, servings, selectedDateKey);
+
+      if (editingEntryId) {
+        const list = state.foodLogs[selectedDateKey] || [];
+        const entry = list.find((item) => item.id === editingEntryId);
+        if (entry && effectiveFood) {
+          entry.meal = MEALS.includes(meal) ? meal : entry.meal;
+          entry.servings = servings;
+          entry.snapshot = {
+            id: effectiveFood.id,
+            name: effectiveFood.name,
+            category: effectiveFood.category,
+            serving: effectiveFood.serving,
+            description: effectiveFood.description || '',
+            calories: effectiveFood.calories,
+            protein: effectiveFood.protein,
+            carbs: effectiveFood.carbs,
+            fat: effectiveFood.fat,
+            fiber: effectiveFood.fiber,
+            sugar: effectiveFood.sugar || 0,
+            salt: getFoodSaltGrams(effectiveFood),
+            nutrients: { ...(effectiveFood.nutrients || {}) },
+            recipeItems: cloneRecipeItems(effectiveFood.recipeItems || []),
+            recipeSummary: effectiveFood.recipeSummary || '',
+          };
+          persist();
+          if (activeTab === 'today') renderToday();
+          if (activeTab === 'weekly') renderWeekly();
+          showToast(`Updated ${effectiveFood.name}`);
+        }
+      } else {
+        logFoodEntry(effectiveFood, meal, servings, selectedDateKey);
+      }
+
+      editingEntryId = null;
       closeModal('food-log-modal');
     });
 
@@ -1185,23 +1692,27 @@
         .filter((f) => `${f.name} ${f.category}`.toLowerCase().includes(q))
         .slice(0, 8);
       if (hits.length === 0) {
-        box.innerHTML = '<p class="section-subtitle">No matching foods found.</p>';
+        box.innerHTML = '<p class="section-subtitle">No matching recipes found.</p>';
       } else {
         box.innerHTML = hits
-          .map(
-            (food) => `
+          .map((rawFood) => {
+            const food = getEffectiveFoodForLog(rawFood);
+            return `
           <div class="scan-result-row">
             <div class="scan-result-info">
               <div class="scan-result-top">
                 <strong>${escapeHtml(food.name)}</strong>
                 <span class="entry-meta">${Math.round(food.calories)} kcal</span>
               </div>
-              <span class="entry-meta">${escapeHtml(food.serving)} · ${escapeHtml(food.category)} · ${food.protein}g P</span>
+              <span class="entry-meta">${escapeHtml(food.serving)} · ${food.protein}g P · ${food.carbs}g C · ${food.sugar}g Sug · ${getFoodSaltGrams(food).toFixed(1)}g Salt</span>
             </div>
-            <button type="button" class="btn btn-primary btn-sm" data-scan-log-id="${escapeHtml(food.id)}">+ Log</button>
+            <div class="scan-row-actions">
+              <button type="button" class="btn btn-soft btn-xs" data-scan-custom-id="${escapeHtml(rawFood.id)}">Edit</button>
+              <button type="button" class="btn btn-primary btn-xs" data-scan-log-id="${escapeHtml(rawFood.id)}">+ Log</button>
+            </div>
           </div>
-        `
-          )
+        `;
+          })
           .join('');
       }
       box.hidden = false;
@@ -1300,6 +1811,14 @@
         return;
       }
 
+      const modeBtn = e.target.closest('[data-foods-mode]');
+      if (modeBtn) {
+        foodsLibraryMode = modeBtn.dataset.foodsMode === 'ingredients' ? 'ingredients' : 'recipes';
+        foodsRenderLimit = 80;
+        renderFoodsLibrary();
+        return;
+      }
+
       const toggleSupp = e.target.closest('[data-toggle-supp]');
       if (toggleSupp) {
         toggleSupplement(toggleSupp.dataset.toggleSupp);
@@ -1354,11 +1873,92 @@
         return;
       }
 
+      const editEntryBtn = e.target.closest('[data-edit-entry]');
+      if (editEntryBtn) {
+        e.stopPropagation();
+        const entry = (state.foodLogs[selectedDateKey] || []).find((x) => x.id === editEntryBtn.dataset.editEntry);
+        if (entry) openFoodLogModal(entry.foodId, entry.meal, entry);
+        return;
+      }
+
       const toggleEntry = e.target.closest('[data-toggle-entry-desc]');
       if (toggleEntry) {
         const eid = toggleEntry.dataset.toggleEntryDesc;
         expandedEntryId = expandedEntryId === eid ? null : eid;
         renderToday();
+        return;
+      }
+
+      // Recipe editor ingredient controls
+      const removeIngBtn = e.target.closest('[data-ing-remove-idx]');
+      if (removeIngBtn) {
+        const idx = Number(removeIngBtn.dataset.ingRemoveIdx);
+        if (Number.isInteger(idx) && activeRecipeItems[idx]) {
+          const ing = resolveIngredient(activeRecipeItems[idx], state.customIngredients);
+          activeRecipeItems.splice(idx, 1);
+          renderRecipeEditor();
+          updateFoodModalPreview();
+          if (ing) showToast(`Removed ${ing.name}`);
+        }
+        return;
+      }
+
+      const stepIngBtn = e.target.closest('[data-ing-step-idx]');
+      if (stepIngBtn) {
+        const idx = Number(stepIngBtn.dataset.ingStepIdx);
+        const delta = Number(stepIngBtn.dataset.ingStepDelta) || 0;
+        if (Number.isInteger(idx) && activeRecipeItems[idx]) {
+          const next = Math.max(0, Number(((Number(activeRecipeItems[idx].amount) || 0) + delta).toFixed(1)));
+          activeRecipeItems[idx].amount = next;
+          renderRecipeEditor();
+          updateFoodModalPreview();
+        }
+        return;
+      }
+
+      const pickerAddBtn = e.target.closest('[data-picker-add-ing]');
+      if (pickerAddBtn) {
+        const ingId = pickerAddBtn.dataset.pickerAddIng;
+        const qtyInput = document.querySelector(`[data-picker-qty-for="${CSS.escape(ingId)}"]`);
+        const qty = qtyInput ? Number(qtyInput.value) : null;
+        addIngredientToActiveRecipe(ingId, qty);
+        return;
+      }
+
+      const applyPresetBtn = e.target.closest('[data-apply-recipe-preset]');
+      if (applyPresetBtn && activeModalFood) {
+        const presetId = applyPresetBtn.dataset.applyRecipePreset;
+        const preset = (state.savedRecipes?.[activeModalFood.id] || []).find((p) => p.id === presetId);
+        if (preset) {
+          activeRecipeItems = cloneRecipeItems(preset.items);
+          renderRecipeEditor();
+          updateFoodModalPreview();
+          showToast(`Applied: ${preset.label}`);
+        }
+        return;
+      }
+
+      const delPresetBtn = e.target.closest('[data-delete-recipe-preset]');
+      if (delPresetBtn && activeModalFood) {
+        const presetId = delPresetBtn.dataset.deleteRecipePreset;
+        if (state.savedRecipes?.[activeModalFood.id]) {
+          state.savedRecipes[activeModalFood.id] = state.savedRecipes[activeModalFood.id].filter(
+            (p) => p.id !== presetId
+          );
+          if (state.savedRecipes[activeModalFood.id].length === 0) {
+            delete state.savedRecipes[activeModalFood.id];
+          }
+          persist();
+          renderRecipeEditor();
+          showToast('Deleted recipe preset');
+        }
+        return;
+      }
+
+      const openIng = e.target.closest('[data-open-ingredient-id]');
+      if (openIng) {
+        e.stopPropagation();
+        openFoodLogModal(`ing:${openIng.dataset.openIngredientId}`);
         return;
       }
 
@@ -1390,12 +1990,28 @@
         return;
       }
 
+      const ingCat = e.target.closest('[data-ing-cat]');
+      if (ingCat) {
+        selectedIngredientCategory = ingCat.dataset.ingCat;
+        renderFoodsLibrary();
+        return;
+      }
+
+      const scanCustomBtn = e.target.closest('[data-scan-custom-id]');
+      if (scanCustomBtn) {
+        const foodId = scanCustomBtn.dataset.scanCustomId;
+        const meal = $('scan-meal-select').value;
+        closeModal('scan-modal');
+        openFoodLogModal(foodId, meal);
+        return;
+      }
+
       const scanLogBtn = e.target.closest('[data-scan-log-id]');
       if (scanLogBtn) {
-        const food = findFoodById(scanLogBtn.dataset.scanLogId);
+        const rawFood = findFoodById(scanLogBtn.dataset.scanLogId);
         const meal = $('scan-meal-select').value;
-        if (food) {
-          logFoodEntry(food, meal, 1, selectedDateKey);
+        if (rawFood) {
+          logFoodEntry(getEffectiveFoodForLog(rawFood), meal, 1, selectedDateKey);
           scanLogBtn.textContent = '✓ Logged';
           scanLogBtn.classList.remove('btn-primary');
           scanLogBtn.classList.add('btn-logged');

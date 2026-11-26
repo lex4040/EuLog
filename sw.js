@@ -7,7 +7,7 @@
      use or Preload.
    ========================================================================== */
 
-const APP_CACHE = 'eulog-offline-v12';
+const APP_CACHE = 'eulog-offline-v14';
 const AI_CACHE = 'eulog-ai-cache-v1';
 
 const APP_ASSETS = [
@@ -16,6 +16,8 @@ const APP_ASSETS = [
   './styles.css',
   './foods-db.js',
   './greek-foods-2000.js',
+  './ingredients-db.js',
+  './recipes-engine.js',
   './nutrients.js',
   './supplements.js',
   './storage.js',

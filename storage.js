@@ -88,9 +88,12 @@
       foodLogs: {},         // { [dateKey]: [{ id, foodId, meal, servings, createdAt, snapshot }] }
       supplementLogs: {},   // { [dateKey]: [suppId, ...] }
       supplements: defaults,
-      customFoods: [],      // user-created custom foods with same schema as USDA_FOODS
+      customFoods: [],       // user-created custom foods with same schema as USDA_FOODS
+      customIngredients: [], // user-added ingredients (per 100 g / 100 ml SI)
+      defaultRecipes: {},    // { [foodId]: [{ ingredientId, amount, inlineIngredient? }] }
+      savedRecipes: {},      // { [foodId]: [{ id, label, items: [...] }] }
       favorites: ['atlantic-salmon', 'avocado', 'greek-yogurt-0', 'spinach-raw', 'blueberries', 'whole-egg'],
-      dailyNotes: {},       // { [dateKey]: string }
+      dailyNotes: {},        // { [dateKey]: string }
     };
   }
 
@@ -144,6 +147,9 @@
         supplementLogs: parsed.supplementLogs || {},
         supplements,
         customFoods: Array.isArray(parsed.customFoods) ? parsed.customFoods : [],
+        customIngredients: Array.isArray(parsed.customIngredients) ? parsed.customIngredients : [],
+        defaultRecipes: parsed.defaultRecipes && typeof parsed.defaultRecipes === 'object' ? parsed.defaultRecipes : {},
+        savedRecipes: parsed.savedRecipes && typeof parsed.savedRecipes === 'object' ? parsed.savedRecipes : {},
         favorites: Array.isArray(parsed.favorites) ? parsed.favorites : base.favorites,
         dailyNotes: parsed.dailyNotes || {},
       };
