@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="blush">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>EuLog — Daily Nutrition, Supplements &amp; Weekly Vital Nutrients</title>
+  <meta
+    name="description"
+    content="EuLog is a private, offline-capable daily nutrition and supplement tracker featuring 153 USDA foods, on-device SigLIP food photo recognition, and Weekly Vital Nutrients analytics."
+  />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="EuLog" />
+  <meta name="theme-color" id="theme-color-meta" content="#fdf7fa" />
+
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Top Bar -->
+    <header class="top-bar">
+      <div class="brand-group">
+        <img src="./icon-192.png" alt="EuLog pink chef hat icon" class="brand-icon" width="38" height="38" />
+        <div class="brand-text">
+          <h1 class="app-title">EuLog</h1>
+          <span class="app-tagline">Nutrition &amp; Vital Nutrients</span>
+        </div>
+      </div>
+
+      <!-- Desktop Segmented Nav -->
+      <nav class="desktop-nav" aria-label="Primary sections">
+        <button type="button" class="nav-tab is-active" data-tab="today">Today</button>
+        <button type="button" class="nav-tab" data-tab="supplements">Supplements</button>
+        <button type="button" class="nav-tab" data-tab="weekly">Weekly Vitals</button>
+        <button type="button" class="nav-tab" data-tab="foods">153 USDA Foods</button>
+      </nav>
+
+      <div class="top-actions">
+        <button id="open-scan-btn" type="button" class="btn btn-primary btn-scan" title="Scan meal photo with on-device SigLIP">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+            <circle cx="12" cy="13" r="3" />
+          </svg>
+          <span>Scan Photo</span>
+        </button>
+
+        <button id="theme-toggle-btn" type="button" class="btn btn-ghost btn-icon" aria-label="Switch color theme" title="Switch color theme">
+          <svg id="theme-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+          </svg>
+        </button>
+
+        <button id="open-settings-btn" type="button" class="btn btn-ghost btn-icon" aria-label="Goals and settings" title="Goals &amp; Settings">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.85 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- PWA Install Banner -->
+    <aside id="install-banner" class="install-banner" hidden aria-label="Install EuLog app">
+      <span>Install EuLog as an offline app on your device.</span>
+      <div class="install-banner-actions">
+        <button id="install-app-btn" type="button" class="btn btn-primary btn-sm">Install</button>
+        <button id="dismiss-install-btn" type="button" class="btn-dismiss" aria-label="Dismiss">&times;</button>
+      </div>
+    </aside>
+
+    <!-- Main View Container -->
+    <main class="main-content">
+      <!-- ==================== TAB 1: TODAY ==================== -->
+      <section id="view-today" class="view-panel is-active" aria-label="Daily nutrition sheet">
+        <!-- Date Masthead -->
+        <div class="date-masthead" id="swipe-date-zone">
+          <button id="prev-day-btn" type="button" class="nav-day-btn" aria-label="Previous day">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+          </button>
+
+          <div class="date-center">
+            <div class="date-title-row">
+              <h2 id="date-primary-heading" class="date-heading">Today</h2>
+              <span id="date-sub-label" class="date-sub"></span>
+            </div>
+            <button id="jump-today-btn" type="button" class="jump-today-btn" hidden>Back to today</button>
+          </div>
+
+          <button id="next-day-btn" type="button" class="nav-day-btn" aria-label="Next day">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+          </button>
+        </div>
+
+        <!-- Daily Energy & Macro Overview Card -->
+        <section class="sheet-card hero-summary" aria-label="Daily calorie and macro summary">
+          <div class="calorie-ring-wrap">
+            <svg class="calorie-ring" viewBox="0 0 120 120" width="116" height="116" aria-hidden="true">
+              <circle class="ring-track" cx="60" cy="60" r="49" />
+              <circle id="calorie-ring-fill" class="ring-fill" cx="60" cy="60" r="49" stroke-dasharray="307.88" stroke-dashoffset="307.88" />
+            </svg>
+            <div class="ring-center">
+              <strong id="today-calories" class="ring-value">0</strong>
+              <span id="today-cal-goal-label" class="ring-sub">/ 2,000 kcal</span>
+            </div>
+          </div>
+
+          <div class="macro-bars">
+            <div class="macro-row">
+              <div class="macro-meta">
+                <span>Protein</span>
+                <strong id="macro-protein-val">0 / 110g</strong>
+              </div>
+              <div class="bar-track"><div id="macro-protein-bar" class="bar-fill fill-protein"></div></div>
+            </div>
+
+            <div class="macro-row">
+              <div class="macro-meta">
+                <span>Carbs</span>
+                <strong id="macro-carbs-val">0 / 225g</strong>
+              </div>
+              <div class="bar-track"><div id="macro-carbs-bar" class="bar-fill fill-carbs"></div></div>
+            </div>
+
+            <div class="macro-row">
+              <div class="macro-meta">
+                <span>Fat</span>
+                <strong id="macro-fat-val">0 / 65g</strong>
+              </div>
+              <div class="bar-track"><div id="macro-fat-bar" class="bar-fill fill-fat"></div></div>
+            </div>
+
+            <div class="macro-row">
+              <div class="macro-meta">
+                <span>Fiber</span>
+                <strong id="macro-fiber-val">0 / 28g</strong>
+              </div>
+              <div class="bar-track"><div id="macro-fiber-bar" class="bar-fill fill-fiber"></div></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Quick Actions Row -->
+        <div class="quick-actions-row">
+          <button id="quick-add-food-btn" type="button" class="quick-action-btn">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14" /></svg>
+            <span>Log USDA Food</span>
+          </button>
+          <button id="quick-scan-btn" type="button" class="quick-action-btn quick-action-accent">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" /><circle cx="12" cy="13" r="3" /></svg>
+            <span>SigLIP Photo Scan</span>
+          </button>
+          <button id="copy-yesterday-btn" type="button" class="quick-action-btn" title="Copy all logged meals from the previous day">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+            <span>Copy Prev Day</span>
+          </button>
+        </div>
+
+        <!-- Inline Daily Supplements Quick Strip -->
+        <section class="sheet-card supp-quick-strip" aria-label="Today's daily supplements quick check">
+          <div class="section-head-row">
+            <div>
+              <h3 class="section-title">Daily Supplements</h3>
+              <p id="today-supp-summary" class="section-subtitle">0 of 4 taken today</p>
+            </div>
+            <button id="goto-supps-btn" type="button" class="text-link-btn">Manage stack &rarr;</button>
+          </div>
+          <div id="today-supp-pills" class="supp-pill-row"></div>
+        </section>
+
+        <!-- Meals Container (Breakfast, Lunch, Dinner, Snacks) -->
+        <div id="meals-container" class="meals-stack"></div>
+
+        <!-- Daily Notes -->
+        <section class="sheet-card notes-card" aria-label="Daily nutrition notes">
+          <div class="section-head-row">
+            <label for="daily-notes-input" class="section-title">Daily Notes</label>
+            <span id="daily-notes-status" class="section-subtitle">Saved per day</span>
+          </div>
+          <textarea
+            id="daily-notes-input"
+            class="notes-textarea"
+            rows="2"
+            placeholder="Energy levels, hydration, cravings, or meal reflections..."
+          ></textarea>
+        </section>
+      </section>
+
+      <!-- ==================== TAB 2: SUPPLEMENTS ==================== -->
+      <section id="view-supplements" class="view-panel" aria-label="Daily supplements tracker">
+        <div class="panel-header-row">
+          <div>
+            <h2 class="panel-title">Daily Supplements</h2>
+            <p id="supp-panel-date-sub" class="panel-subtitle">Checked supplements automatically feed into Weekly Vital Nutrients.</p>
+          </div>
+          <div class="panel-header-actions">
+            <button id="mark-all-supps-btn" type="button" class="btn btn-soft btn-sm">Take All</button>
+            <button id="open-add-supp-btn" type="button" class="btn btn-primary btn-sm">+ Custom</button>
+          </div>
+        </div>
+
+        <!-- Daily Supplement Progress Banner -->
+        <section class="sheet-card supp-progress-card">
+          <div class="supp-progress-top">
+            <strong id="supp-progress-label">0 of 4 taken</strong>
+            <span id="supp-progress-pct" class="pct-pill">0%</span>
+          </div>
+          <div class="bar-track bar-track-lg"><div id="supp-progress-bar" class="bar-fill fill-accent"></div></div>
+        </section>
+
+        <!-- User's Supplement Stack -->
+        <div id="supplements-list-container" class="supp-groups"></div>
+
+        <!-- Quick-Add Evidence-Based Supplement Presets -->
+        <section class="sheet-card presets-card">
+          <div class="section-head-row">
+            <div>
+              <h3 class="section-title">Quick-Add Presets</h3>
+              <p class="section-subtitle">Tap to add to your daily stack with pre-filled nutrient profiles</p>
+            </div>
+          </div>
+          <div id="supp-presets-grid" class="presets-grid"></div>
+        </section>
+      </section>
+
+      <!-- ==================== TAB 3: WEEKLY VITAL NUTRIENTS ==================== -->
+      <section id="view-weekly" class="view-panel" aria-label="Weekly vital nutrients report">
+        <div class="panel-header-row">
+          <div>
+            <h2 class="panel-title">Weekly Vital Nutrients</h2>
+            <p id="weekly-range-label" class="panel-subtitle">7-day coverage window</p>
+          </div>
+
+          <div class="week-nav-group">
+            <button id="prev-week-btn" type="button" class="nav-day-btn" aria-label="Previous 7 days">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+            </button>
+            <button id="this-week-btn" type="button" class="btn btn-soft btn-sm">Last 7d</button>
+            <button id="next-week-btn" type="button" class="nav-day-btn" aria-label="Next 7 days">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Weekly Score + Source Toggle -->
+        <section class="sheet-card weekly-hero-card">
+          <div class="weekly-score-left">
+            <div class="score-ring-wrap">
+              <svg class="calorie-ring" viewBox="0 0 120 120" width="104" height="104" aria-hidden="true">
+                <circle class="ring-track" cx="60" cy="60" r="49" />
+                <circle id="weekly-score-ring" class="ring-fill" cx="60" cy="60" r="49" stroke-dasharray="307.88" stroke-dashoffset="307.88" />
+              </svg>
+              <div class="ring-center">
+                <strong id="weekly-vital-score" class="ring-value">0</strong>
+                <span class="ring-sub">Vital Score</span>
+              </div>
+            </div>
+
+            <div class="weekly-meta-stats">
+              <div class="mini-stat">
+                <span class="mini-stat-label">Active Days</span>
+                <strong id="weekly-active-days">0 / 7</strong>
+              </div>
+              <div class="mini-stat">
+                <span class="mini-stat-label">Avg Calories</span>
+                <strong id="weekly-avg-cal">0 kcal</strong>
+              </div>
+              <div class="mini-stat">
+                <span class="mini-stat-label">Avg Protein</span>
+                <strong id="weekly-avg-protein">0 g</strong>
+              </div>
+              <div class="mini-stat">
+                <span class="mini-stat-label">Avg Fiber</span>
+                <strong id="weekly-avg-fiber">0 g</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="weekly-source-bar">
+            <span class="source-label">Nutrient Source:</span>
+            <div class="segmented-toggle" role="group" aria-label="Nutrient source toggle">
+              <button id="source-both-btn" type="button" class="seg-btn is-active">Food + Supplements</button>
+              <button id="source-food-btn" type="button" class="seg-btn">Food Only</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Smart Gap Closing Callout -->
+        <section id="weekly-gaps-section" class="sheet-card gaps-card" aria-label="Top weekly nutrient gaps">
+          <div class="section-head-row">
+            <div>
+              <h3 class="section-title">Priority Weekly Gaps</h3>
+              <p class="section-subtitle">Tap any food suggestion to log it straight into today</p>
+            </div>
+          </div>
+          <div id="weekly-gaps-list" class="gaps-list"></div>
+        </section>
+
+        <!-- 7-Day Calorie Trend -->
+        <section class="sheet-card trend-card" aria-label="7-day calorie intake trend">
+          <div class="section-head-row">
+            <div>
+              <h3 class="section-title">7-Day Energy Consistency</h3>
+              <p class="section-subtitle">Daily calories vs. your daily target</p>
+            </div>
+          </div>
+          <div id="weekly-calorie-chart" class="trend-bars-wrap"></div>
+        </section>
+
+        <!-- All 13 Vital Nutrients Breakdown -->
+        <div id="weekly-nutrients-groups" class="vital-groups"></div>
+      </section>
+
+      <!-- ==================== TAB 4: 153 USDA FOODS ==================== -->
+      <section id="view-foods" class="view-panel" aria-label="153 USDA foods database">
+        <div class="panel-header-row">
+          <div>
+            <h2 class="panel-title">USDA Food Library</h2>
+            <p id="foods-count-subtitle" class="panel-subtitle">153 curated USDA FoodData Central foods with full micronutrient profiles</p>
+          </div>
+          <button id="open-custom-food-btn" type="button" class="btn btn-primary btn-sm">+ Custom Food</button>
+        </div>
+
+        <section class="sheet-card foods-controls-card">
+          <div class="search-sort-row">
+            <div class="search-input-wrap">
+              <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
+              <input id="foods-search-input" type="search" class="text-input search-input" placeholder="Search 153 USDA foods (e.g., salmon, spinach, avocado)..." autocomplete="off" />
+            </div>
+
+            <select id="foods-sort-select" class="select-input" aria-label="Sort foods">
+              <option value="name">Sort: A–Z</option>
+              <option value="protein">Highest Protein</option>
+              <option value="fiber">Highest Fiber</option>
+              <option value="cal-asc">Lowest Calories</option>
+              <option value="vitD">Richest in Vitamin D</option>
+              <option value="iron">Richest in Iron</option>
+              <option value="omega3">Richest in Omega-3</option>
+              <option value="magnesium">Richest in Magnesium</option>
+              <option value="calcium">Richest in Calcium</option>
+              <option value="potassium">Richest in Potassium</option>
+              <option value="vitC">Richest in Vitamin C</option>
+              <option value="folate">Richest in Folate</option>
+              <option value="vitB12">Richest in B12</option>
+            </select>
+          </div>
+
+          <div id="foods-category-chips" class="chip-scroll-row" role="tablist" aria-label="Food categories"></div>
+        </section>
+
+        <div id="foods-list" class="foods-grid"></div>
+      </section>
+    </main>
+
+    <!-- Mobile Bottom Tab Navigation -->
+    <nav class="mobile-bottom-nav" aria-label="Mobile sections">
+      <button type="button" class="mobile-nav-btn is-active" data-tab="today">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
+        <span>Today</span>
+      </button>
+      <button type="button" class="mobile-nav-btn" data-tab="supplements">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z" /><path d="m8.5 8.5 7 7" /></svg>
+        <span>Supplements</span>
+      </button>
+      <button type="button" class="mobile-nav-btn" data-tab="weekly">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-3 3" /></svg>
+        <span>Weekly</span>
+      </button>
+      <button type="button" class="mobile-nav-btn" data-tab="foods">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
+        <span>Foods</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- ==================== MODAL: LOG FOOD DETAIL ==================== -->
+  <div id="food-log-modal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="food-modal-title">
+    <div class="modal-sheet">
+      <div class="modal-head">
+        <div>
+          <span id="food-modal-category" class="modal-eyebrow">USDA Food</span>
+          <h3 id="food-modal-title" class="modal-title">Food Name</h3>
+        </div>
+        <button type="button" class="modal-close-btn" data-close-modal="food-log-modal" aria-label="Close">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-grid-2">
+          <div class="form-field">
+            <label for="log-meal-select" class="field-label">Meal</label>
+            <select id="log-meal-select" class="select-input">
+              <option value="Breakfast">Breakfast</option>
+              <option value="Lunch">Lunch</option>
+              <option value="Dinner">Dinner</option>
+              <option value="Snacks">Snacks</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="log-servings-input" class="field-label">Servings (<span id="food-modal-serving">1 serving</span>)</label>
+            <input id="log-servings-input" type="number" class="text-input" min="0.1" max="20" step="0.25" value="1" />
+          </div>
+        </div>
+
+        <div class="serving-presets">
+          <button type="button" class="preset-mult-btn" data-mult="0.5">0.5&times;</button>
+          <button type="button" class="preset-mult-btn is-active" data-mult="1">1&times;</button>
+          <button type="button" class="preset-mult-btn" data-mult="1.5">1.5&times;</button>
+          <button type="button" class="preset-mult-btn" data-mult="2">2&times;</button>
+        </div>
+
+        <div id="food-modal-macro-preview" class="modal-macro-strip"></div>
+
+        <div class="modal-vitals-box">
+          <h4 class="mini-section-title">Vital Nutrient Contributions</h4>
+          <div id="food-modal-vitals-grid" class="modal-vitals-grid"></div>
+        </div>
+      </div>
+
+      <div class="modal-foot">
+        <button id="food-modal-fav-btn" type="button" class="btn btn-ghost">☆ Favorite</button>
+        <button id="food-modal-submit-btn" type="button" class="btn btn-primary">Add to Day</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: ON-DEVICE SIGLIP PHOTO SCAN ==================== -->
+  <div id="scan-modal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="scan-modal-title">
+    <div class="modal-sheet modal-sheet-lg">
+      <div class="modal-head">
+        <div>
+          <span class="modal-eyebrow">100% On-Device AI &middot; Private</span>
+          <h3 id="scan-modal-title" class="modal-title">SigLIP Food Photo Recognition</h3>
+        </div>
+        <button type="button" class="modal-close-btn" data-close-modal="scan-modal" aria-label="Close">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="scan-toolbar">
+          <div class="form-field-inline">
+            <label for="scan-meal-select" class="field-label">Log into:</label>
+            <select id="scan-meal-select" class="select-input select-compact">
+              <option value="Breakfast">Breakfast</option>
+              <option value="Lunch">Lunch</option>
+              <option value="Dinner">Dinner</option>
+              <option value="Snacks">Snacks</option>
+            </select>
+          </div>
+          <span id="siglip-status-badge" class="status-chip">SigLIP Ready on Demand</span>
+        </div>
+
+        <!-- Upload / Camera Dropzone -->
+        <div id="scan-dropzone" class="scan-dropzone">
+          <img id="scan-preview-img" class="scan-preview-img" alt="Meal photo preview" hidden />
+          <div id="scan-empty-prompt" class="scan-empty-prompt">
+            <div class="scan-camera-badge">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" /><circle cx="12" cy="13" r="3" /></svg>
+            </div>
+            <p class="scan-drop-title">Snap or upload a meal photo</p>
+            <p class="scan-drop-sub">Runs <strong>Xenova/siglip-base-patch16-224</strong> locally in your browser against all 153 USDA foods. Photos never leave your device.</p>
+          </div>
+          <div class="scan-input-buttons">
+            <label class="btn btn-primary btn-sm file-trigger-btn">
+              <input id="scan-camera-input" type="file" accept="image/*" capture="environment" hidden />
+              Take Photo
+            </label>
+            <label class="btn btn-soft btn-sm file-trigger-btn">
+              <input id="scan-gallery-input" type="file" accept="image/*" hidden />
+              Choose Photo
+            </label>
+          </div>
+        </div>
+
+        <!-- Progress Bar -->
+        <div id="scan-progress-wrap" class="scan-progress-wrap" hidden>
+          <div class="scan-progress-meta">
+            <span id="scan-progress-text">Initializing SigLIP…</span>
+            <strong id="scan-progress-pct">0%</strong>
+          </div>
+          <div class="bar-track"><div id="scan-progress-bar" class="bar-fill fill-accent"></div></div>
+        </div>
+
+        <!-- Predictions List -->
+        <div id="scan-results-section" hidden>
+          <div class="section-head-row">
+            <h4 id="scan-results-heading" class="mini-section-title">Top Matches from 153 USDA Foods</h4>
+            <span id="scan-engine-note" class="section-subtitle"></span>
+          </div>
+          <div id="scan-results-list" class="scan-results-list"></div>
+        </div>
+      </div>
+
+      <div class="modal-foot">
+        <button id="scan-manual-fallback-btn" type="button" class="btn btn-ghost">Browse 153 Foods</button>
+        <button type="button" class="btn btn-primary" data-close-modal="scan-modal">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: ADD CUSTOM SUPPLEMENT ==================== -->
+  <div id="supp-modal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="supp-modal-title">
+    <div class="modal-sheet">
+      <div class="modal-head">
+        <div>
+          <span class="modal-eyebrow">Daily Stack</span>
+          <h3 id="supp-modal-title" class="modal-title">Add Custom Supplement</h3>
+        </div>
+        <button type="button" class="modal-close-btn" data-close-modal="supp-modal" aria-label="Close">&times;</button>
+      </div>
+
+      <form id="custom-supp-form" class="modal-body">
+        <div class="form-field">
+          <label for="supp-name-input" class="field-label">Supplement Name</label>
+          <input id="supp-name-input" type="text" class="text-input" placeholder="e.g., Vitamin D3 + K2" required />
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-field">
+            <label for="supp-dose-input" class="field-label">Dosage Label</label>
+            <input id="supp-dose-input" type="text" class="text-input" placeholder="e.g., 2,000 IU" required />
+          </div>
+          <div class="form-field">
+            <label for="supp-timing-select" class="field-label">Timing</label>
+            <select id="supp-timing-select" class="select-input">
+              <option value="Morning">Morning</option>
+              <option value="With Meal">With Meal</option>
+              <option value="Evening">Evening</option>
+              <option value="Anytime">Anytime</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label for="supp-notes-input" class="field-label">Notes (optional)</label>
+          <input id="supp-notes-input" type="text" class="text-input" placeholder="e.g., Take with breakfast" />
+        </div>
+
+        <div class="modal-vitals-box">
+          <h4 class="mini-section-title">Optional Vital Nutrient Contribution (per dose)</h4>
+          <div id="supp-nutrient-inputs" class="nutrient-inputs-grid"></div>
+        </div>
+
+        <div class="modal-foot modal-foot-inline">
+          <button type="button" class="btn btn-ghost" data-close-modal="supp-modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Supplement</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: ADD CUSTOM FOOD ==================== -->
+  <div id="custom-food-modal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="custom-food-modal-title">
+    <div class="modal-sheet">
+      <div class="modal-head">
+        <div>
+          <span class="modal-eyebrow">Personal Library</span>
+          <h3 id="custom-food-modal-title" class="modal-title">Add Custom Food</h3>
+        </div>
+        <button type="button" class="modal-close-btn" data-close-modal="custom-food-modal" aria-label="Close">&times;</button>
+      </div>
+
+      <form id="custom-food-form" class="modal-body">
+        <div class="form-field">
+          <label for="cf-name" class="field-label">Food Name</label>
+          <input id="cf-name" type="text" class="text-input" placeholder="e.g., Homemade Chia Pudding" required />
+        </div>
+        <div class="form-grid-2">
+          <div class="form-field">
+            <label for="cf-serving" class="field-label">Serving Size</label>
+            <input id="cf-serving" type="text" class="text-input" placeholder="e.g., 1 bowl (200g)" required />
+          </div>
+          <div class="form-field">
+            <label for="cf-calories" class="field-label">Calories (kcal)</label>
+            <input id="cf-calories" type="number" class="text-input" min="0" step="1" value="220" required />
+          </div>
+        </div>
+        <div class="form-grid-4">
+          <div class="form-field">
+            <label for="cf-protein" class="field-label">Protein (g)</label>
+            <input id="cf-protein" type="number" class="text-input" min="0" step="0.1" value="8" />
+          </div>
+          <div class="form-field">
+            <label for="cf-carbs" class="field-label">Carbs (g)</label>
+            <input id="cf-carbs" type="number" class="text-input" min="0" step="0.1" value="24" />
+          </div>
+          <div class="form-field">
+            <label for="cf-fat" class="field-label">Fat (g)</label>
+            <input id="cf-fat" type="number" class="text-input" min="0" step="0.1" value="10" />
+          </div>
+          <div class="form-field">
+            <label for="cf-fiber" class="field-label">Fiber (g)</label>
+            <input id="cf-fiber" type="number" class="text-input" min="0" step="0.1" value="6" />
+          </div>
+        </div>
+        <div class="modal-foot modal-foot-inline">
+          <button type="button" class="btn btn-ghost" data-close-modal="custom-food-modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save &amp; Log</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: SETTINGS & GOALS ==================== -->
+  <div id="settings-modal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+    <div class="modal-sheet">
+      <div class="modal-head">
+        <div>
+          <span class="modal-eyebrow">Preferences</span>
+          <h3 id="settings-modal-title" class="modal-title">Goals, Theme &amp; Data</h3>
+        </div>
+        <button type="button" class="modal-close-btn" data-close-modal="settings-modal" aria-label="Close">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-field">
+          <label class="field-label">Appearance Theme</label>
+          <div class="theme-picker-row">
+            <button type="button" class="theme-option-btn" data-set-theme="blush">Blush Light</button>
+            <button type="button" class="theme-option-btn" data-set-theme="dark">AMOLED Dark</button>
+            <button type="button" class="theme-option-btn" data-set-theme="paper">Warm Paper</button>
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label for="setting-dv-profile" class="field-label">Weekly Vital Nutrients Reference Profile</label>
+          <select id="setting-dv-profile" class="select-input">
+            <option value="standard">Standard Adult (FDA Daily Values)</option>
+            <option value="female">Adult Female (NIH RDA)</option>
+            <option value="male">Adult Male (NIH RDA)</option>
+          </select>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-field">
+            <label for="setting-cal-goal" class="field-label">Daily Calories (kcal)</label>
+            <input id="setting-cal-goal" type="number" class="text-input" min="800" max="6000" step="50" />
+          </div>
+          <div class="form-field">
+            <label for="setting-protein-goal" class="field-label">Protein Goal (g)</label>
+            <input id="setting-protein-goal" type="number" class="text-input" min="20" max="400" step="5" />
+          </div>
+          <div class="form-field">
+            <label for="setting-carbs-goal" class="field-label">Carbs Goal (g)</label>
+            <input id="setting-carbs-goal" type="number" class="text-input" min="20" max="600" step="5" />
+          </div>
+          <div class="form-field">
+            <label for="setting-fat-goal" class="field-label">Fat Goal (g)</label>
+            <input id="setting-fat-goal" type="number" class="text-input" min="15" max="250" step="5" />
+          </div>
+        </div>
+
+        <div class="settings-divider"></div>
+
+        <div class="form-field">
+          <label class="field-label">On-Device SigLIP Model Cache</label>
+          <p class="field-hint">Pre-download <code>Xenova/siglip-base-patch16-224</code> on Wi-Fi so food photo recognition works instantaneously and offline.</p>
+          <button id="preload-siglip-btn" type="button" class="btn btn-soft btn-sm">Preload SigLIP Weights</button>
+          <span id="preload-siglip-status" class="field-hint-inline"></span>
+        </div>
+
+        <div class="settings-divider"></div>
+
+        <div class="form-field">
+          <label class="field-label">Backup &amp; Portability (100% Local)</label>
+          <div class="backup-btn-row">
+            <button id="export-json-btn" type="button" class="btn btn-soft btn-sm">Export JSON</button>
+            <button id="export-csv-btn" type="button" class="btn btn-soft btn-sm">Export CSV</button>
+            <label class="btn btn-soft btn-sm file-trigger-btn">
+              <input id="import-json-input" type="file" accept="application/json" hidden />
+              Import JSON
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-foot">
+        <button id="reset-data-btn" type="button" class="btn btn-danger-ghost btn-sm">Reset All Data</button>
+        <button id="save-settings-btn" type="button" class="btn btn-primary">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="./foods-db.js"></script>
+  <script src="./nutrients.js"></script>
+  <script src="./supplements.js"></script>
+  <script src="./storage.js"></script>
+  <script src="./siglip-vision.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

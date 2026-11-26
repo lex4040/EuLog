@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="EuLog pink line-art chef hat icon">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFF9FB" />
+      <stop offset="100%" stop-color="#FDE8F0" />
+    </linearGradient>
+  </defs>
+
+  <!-- Soft blush backdrop -->
+  <rect width="512" height="512" fill="url(#bgGrad)" />
+
+  <!-- Pink Line-Art Chef Hat (Toque) -->
+  <g fill="none" stroke="#E04B82" stroke-width="18" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Crown: three-lobe chef hat puff seamlessly meeting the band -->
+    <path d="M 152 296
+             L 152 270
+             C 104 266, 80 228, 90 186
+             C 99 148, 134 128, 170 137
+             C 184 98, 218 78, 256 78
+             C 294 78, 328 98, 342 137
+             C 378 128, 413 148, 422 186
+             C 432 228, 408 266, 360 270
+             L 360 296" />
+
+    <!-- Classic toque vertical pleats -->
+    <path d="M 206 244 L 199 190" stroke-width="15" />
+    <path d="M 256 244 L 256 178" stroke-width="15" />
+    <path d="M 306 244 L 313 190" stroke-width="15" />
+
+    <!-- Hat band body (cleanly aligned with crown base) -->
+    <path d="M 152 296
+             L 360 296
+             L 360 392
+             C 360 408, 348 418, 332 418
+             L 180 418
+             C 164 418, 152 408, 152 392
+             Z" />
+
+    <!-- Band horizontal trim line -->
+    <line x1="152" y1="364" x2="360" y2="364" stroke-width="15" />
+  </g>
+
+  <!-- Delicate four-point sparkle accent floating cleanly above-right -->
+  <path d="M 416 74 C 418 90, 422 94, 438 96 C 422 98, 418 102, 416 118 C 414 102, 410 98, 394 96 C 410 94, 414 90, 416 74 Z" fill="#EC6E9E" />
+</svg>

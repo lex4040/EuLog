@@ -1,0 +1,40 @@
+{
+  "id": "./",
+  "name": "EuLog — Nutrition & Vital Nutrients",
+  "short_name": "EuLog",
+  "description": "Private, offline-capable daily nutrition & supplement tracker with 153 USDA foods, on-device SigLIP photo recognition, and Weekly Vital Nutrients.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
+  "background_color": "#fdf7fa",
+  "theme_color": "#fdf7fa",
+  "categories": ["health", "lifestyle", "food"],
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "./icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
