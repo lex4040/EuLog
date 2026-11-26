@@ -32,13 +32,14 @@ async function ensureVisionLoaded() {
   loadPromise = (async () => {
     self.postMessage({ type: 'progress', stage: 'init', pct: 6, text: 'Starting on-device SigLIP vision worker…' });
 
-    const importWithTimeout = (url, ms = 12000) =>
+    const timeoutMs = typeof navigator !== 'undefined' && navigator.onLine === false ? 3500 : 12000;
+    const importWithTimeout = (url, ms = timeoutMs) =>
       Promise.race([
         import(url),
         new Promise((_, reject) => setTimeout(() => reject(new Error('SigLIP CDN timed out')), ms)),
       ]);
 
-    const { AutoProcessor, SiglipVisionModel, RawImage, env } = await importWithTimeout(TRANSFORMERS_CDN, 12000);
+    const { AutoProcessor, SiglipVisionModel, RawImage, env } = await importWithTimeout(TRANSFORMERS_CDN, timeoutMs);
     self._RawImage = RawImage;
 
     env.allowLocalModels = false;
