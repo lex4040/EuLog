@@ -754,8 +754,9 @@
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: 'environment' },
-          width: { ideal: 640 },
-          height: { ideal: 480 },
+          width: { ideal: 320, max: 480 },
+          height: { ideal: 320, max: 480 },
+          frameRate: { ideal: 15, max: 24 },
         },
         audio: false,
       });
@@ -778,7 +779,9 @@
     $('scan-meal-select').value = pendingMealTarget || guessDefaultMeal();
     const st = window.EuLogVision.getStatus();
     $('siglip-status-badge').textContent =
-      st.status === 'ready' ? `SigLIP Vision Ready (${st.device.toUpperCase()})` : 'SigLIP Vision (q4 · 260 Foods)';
+      st.status === 'ready'
+        ? `SigLIP Vision Ready (${st.device.toUpperCase()})`
+        : `SigLIP Vision (q4 · ${USDA_FOODS.length} Foods)`;
     openModal('scan-modal');
   }
 
@@ -1097,10 +1100,22 @@
       stopLiveCamera();
       if (!$('scan-preview-img').src) $('scan-empty-prompt').hidden = false;
     });
-    $('scan-capture-btn').addEventListener('click', () => {
+    $('scan-capture-btn').addEventListener('click', async () => {
       const video = $('scan-live-video');
       if (!video || video.hidden) return;
-      analyzePhotoSource(video).finally(() => stopLiveCamera());
+      try {
+        // Grab tiny 224x224 snapshot and release camera hardware BEFORE SigLIP starts
+        const frame = await window.EuLogVision.prepareCompactFrame(video, 224);
+        stopLiveCamera();
+        const preview = $('scan-preview-img');
+        preview.src = frame.previewUrl;
+        preview.hidden = false;
+        $('scan-empty-prompt').hidden = true;
+        analyzePhotoSource(frame);
+      } catch (err) {
+        stopLiveCamera();
+        showToast('Could not capture camera frame — try Choose Photo');
+      }
     });
     $('scan-gallery-input').addEventListener('change', (e) => {
       if (e.target.files?.[0]) handlePhotoFile(e.target.files[0]);

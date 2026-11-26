@@ -103,53 +103,58 @@
   }
 
   /**
-   * Memory-safe downscale from File/Blob OR HTMLVideoElement/HTMLCanvasElement
-   * straight to a compact <= 256px canvas + tiny JPEG preview data URL.
-   * Avoids reading huge 50MP/200MP camera images into base64 strings!
+   * Ultra-lightweight center-crop downscale to SigLIP's exact native 224x224
+   * input (only 200 KB RGBA!) from a File/Blob, live <video>, or pre-captured frame.
+   * Avoids full-res 50MP/200MP decoding and skips redundant worker resizes.
    */
-  async function prepareCompactFrame(source, maxSide = 256) {
+  async function prepareCompactFrame(source, targetSize = 224) {
+    // Allow passing an already-captured compact frame object (used after stopping live camera)
+    if (source && source.__eulogFrame) return source;
+
     const canvas = document.createElement('canvas');
+    canvas.width = targetSize;
+    canvas.height = targetSize;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
+    const drawCenterSquare = (drawable, sw, sh) => {
+      const side = Math.min(sw, sh);
+      const sx = Math.floor((sw - side) / 2);
+      const sy = Math.floor((sh - side) / 2);
+      ctx.drawImage(drawable, sx, sy, side, side, 0, 0, targetSize, targetSize);
+    };
+
     if (source instanceof HTMLVideoElement) {
-      const vw = source.videoWidth || 640;
-      const vh = source.videoHeight || 480;
-      const scale = Math.min(1, maxSide / Math.max(vw, vh));
-      canvas.width = Math.max(1, Math.round(vw * scale));
-      canvas.height = Math.max(1, Math.round(vh * scale));
-      ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+      const vw = source.videoWidth || 320;
+      const vh = source.videoHeight || 320;
+      drawCenterSquare(source, vw, vh);
     } else if (source instanceof Blob) {
       let bitmap = null;
+      let drawn = false;
       try {
         if (typeof createImageBitmap === 'function') {
           try {
-            // Native hardware resize before full bitmap allocation (critical for Galaxy S25 200MP / iPhone HEIC)
+            // Hardware resize directly to ~224px before allocating full pixel memory
             bitmap = await createImageBitmap(source, {
-              resizeWidth: maxSide,
-              resizeQuality: 'medium',
+              resizeWidth: targetSize,
+              resizeQuality: 'low',
             });
           } catch {
             bitmap = await createImageBitmap(source);
           }
-          const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-          canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-          canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-          ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+          drawCenterSquare(bitmap, bitmap.width, bitmap.height);
+          drawn = true;
         }
       } finally {
         if (bitmap && typeof bitmap.close === 'function') bitmap.close();
       }
 
-      if (canvas.width === 0 || canvas.height === 0) {
+      if (!drawn) {
         const objUrl = URL.createObjectURL(source);
         try {
           await new Promise((resolve, reject) => {
             const img = new Image();
             img.onload = () => {
-              const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
-              canvas.width = Math.max(1, Math.round(img.width * scale));
-              canvas.height = Math.max(1, Math.round(img.height * scale));
-              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              drawCenterSquare(img, img.width, img.height);
               resolve();
             };
             img.onerror = () => reject(new Error('Could not decode photo'));
@@ -163,10 +168,7 @@
       await new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = () => {
-          const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
-          canvas.width = Math.max(1, Math.round(img.width * scale));
-          canvas.height = Math.max(1, Math.round(img.height * scale));
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          drawCenterSquare(img, img.width, img.height);
           resolve();
         };
         img.onerror = () => reject(new Error('Could not decode image URL'));
@@ -176,9 +178,16 @@
       throw new Error('Unsupported photo source');
     }
 
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const previewUrl = canvas.toDataURL('image/jpeg', 0.85);
-    return { canvas, imageData, previewUrl, width: canvas.width, height: canvas.height };
+    const imageData = ctx.getImageData(0, 0, targetSize, targetSize);
+    const previewUrl = canvas.toDataURL('image/jpeg', 0.72);
+    return {
+      __eulogFrame: true,
+      canvas,
+      imageData,
+      previewUrl,
+      width: targetSize,
+      height: targetSize,
+    };
   }
 
   function scoreAgainstPrecomputedEmbeddings(imageVec, foods) {
@@ -308,8 +317,8 @@
     const start = performance.now();
     const list = foods && foods.length ? foods : (global.EuLogFoods?.USDA_FOODS || []);
 
-    onProgress?.({ stage: 'prep', pct: 4, text: 'Preparing compact photo frame…' });
-    const frame = await prepareCompactFrame(source, 256);
+    onProgress?.({ stage: 'prep', pct: 4, text: 'Preparing compact 224×224 photo frame…' });
+    const frame = await prepareCompactFrame(source, 224);
 
     try {
       const rgbaCopy = new Uint8ClampedArray(frame.imageData.data);
@@ -322,7 +331,7 @@
       onProgress?.({
         stage: 'rank',
         pct: 97,
-        text: `Matching against all ${list.length} USDA foods…`,
+        text: `Matching against all ${list.length} USDA & Greek foods…`,
       });
 
       const imageVec = new Float32Array(res.embedding);
@@ -331,7 +340,7 @@
         throw new Error('Precomputed SigLIP embeddings not loaded');
       }
 
-      onProgress?.({ stage: 'done', pct: 100, text: `Matched across all ${list.length} USDA foods` });
+      onProgress?.({ stage: 'done', pct: 100, text: `Matched across all ${list.length} foods` });
 
       return {
         engine: 'siglip',
@@ -360,6 +369,11 @@
         elapsedMs: Math.round(performance.now() - start),
         results: fallbackResults,
       };
+    } finally {
+      if (frame.canvas) {
+        frame.canvas.width = 0;
+        frame.canvas.height = 0;
+      }
     }
   }
 
