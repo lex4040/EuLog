@@ -117,6 +117,16 @@
         migrations.proteinScoopAdded = true;
       }
 
+      // One-time migration: update default Magnesium Glycinate to 100 mg/day
+      if (!migrations.magnesium100mg) {
+        const mag = supplements.find((s) => s.id === 'supp-mag-glycinate');
+        if (mag && mag.nutrients?.magnesium === 200) {
+          mag.dose = '100 mg elemental';
+          mag.nutrients = { ...(mag.nutrients || {}), magnesium: 100 };
+        }
+        migrations.magnesium100mg = true;
+      }
+
       // Normalize legacy IU/mcg labels in existing default supplements to SI
       for (const s of supplements) {
         if (s.dose === '2,000 IU (50 mcg)') s.dose = '50 µg';

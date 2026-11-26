@@ -29,10 +29,10 @@
     {
       id: 'supp-mag-glycinate',
       name: 'Magnesium Glycinate',
-      dose: '200 mg elemental',
+      dose: '100 mg elemental',
       timing: 'Evening',
       notes: 'Gentle chelated form for sleep & recovery',
-      nutrients: { magnesium: 200 },
+      nutrients: { magnesium: 100 },
     },
     {
       id: 'supp-vit-b12',
