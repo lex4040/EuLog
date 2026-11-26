@@ -710,6 +710,7 @@ button {
 /* ==================== MEAL CARDS ==================== */
 .meals-stack {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   margin-bottom: 14px;
 }
@@ -720,6 +721,8 @@ button {
   border-radius: var(--radius-lg);
   padding: 16px 18px;
   box-shadow: var(--shadow-card);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .meal-head {
@@ -771,7 +774,9 @@ button {
 .meal-entries {
   margin-top: 10px;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
+  min-width: 0;
 }
 
 .meal-empty {
@@ -784,6 +789,9 @@ button {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   padding: 10px 12px;
   border-radius: var(--radius-sm);
   background: var(--sheet-elevated);
@@ -806,13 +814,17 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  width: 100%;
+  min-width: 0;
 }
 
 .entry-desc-box {
   padding-top: 8px;
   border-top: 1px solid var(--rule);
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 7px;
+  min-width: 0;
   animation: fadeUp 0.16s var(--ease);
 }
 
@@ -821,6 +833,7 @@ button {
   font-size: 0.83rem;
   line-height: 1.45;
   color: var(--ink-secondary);
+  overflow-wrap: break-word;
 }
 
 .food-modal-desc {
