@@ -142,8 +142,8 @@
 
   function exportCsvLogs(state, foodLookup) {
     const header = [
-      'Date', 'Meal', 'Food', 'Servings', 'Calories', 'Protein_g', 'Carbs_g', 'Fat_g', 'Fiber_g',
-      'VitD_mcg', 'VitB12_mcg', 'Folate_mcg', 'VitC_mg', 'VitA_mcg', 'VitE_mg', 'VitK_mcg',
+      'Date', 'Meal', 'Food', 'Servings', 'Calories_kcal', 'Protein_g', 'Carbs_g', 'Fat_g', 'Fiber_g',
+      'VitD_ug', 'VitB12_ug', 'Folate_ug', 'VitC_mg', 'VitA_ug', 'VitE_mg', 'VitK_ug',
       'Iron_mg', 'Calcium_mg', 'Magnesium_mg', 'Potassium_mg', 'Zinc_mg', 'Omega3_g',
     ];
     const rows = [header.join(',')];

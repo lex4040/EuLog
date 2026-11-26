@@ -13,7 +13,7 @@
     {
       id: 'supp-vit-d3',
       name: 'Vitamin D3',
-      dose: '2,000 IU (50 mcg)',
+      dose: '50 µg',
       timing: 'Morning',
       notes: 'Take with a meal containing healthy fats',
       nutrients: { vitD: 50 },
@@ -37,7 +37,7 @@
     {
       id: 'supp-vit-b12',
       name: 'Vitamin B12 (Methylcobalamin)',
-      dose: '500 mcg',
+      dose: '500 µg',
       timing: 'Morning',
       notes: 'Energy metabolism & nervous system',
       nutrients: { vitB12: 500 },
@@ -60,7 +60,7 @@
     {
       presetId: 'preset-vit-d3-k2',
       name: 'Vitamin D3 + K2',
-      dose: '2,000 IU + 90 mcg MK-7',
+      dose: '50 µg D3 + 90 µg K2',
       timing: 'Morning',
       notes: 'Synergistic bone & cardiovascular support',
       nutrients: { vitD: 50, vitK: 90 },
@@ -100,7 +100,7 @@
     {
       presetId: 'preset-folate',
       name: 'Methylfolate (B9)',
-      dose: '400 mcg DFE',
+      dose: '400 µg DFE',
       timing: 'Morning',
       notes: 'Bioavailable active folate form',
       nutrients: { folate: 400 },

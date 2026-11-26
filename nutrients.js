@@ -7,13 +7,13 @@
   'use strict';
 
   const VITAL_NUTRIENTS = [
-    { key: 'vitD', label: 'Vitamin D', short: 'Vit D', unit: 'mcg', group: 'Vitamins', dailyDV: 15, desc: 'Bone density, mood & immune regulation' },
-    { key: 'vitB12', label: 'Vitamin B12', short: 'B12', unit: 'mcg', group: 'Vitamins', dailyDV: 2.4, desc: 'Red blood cells, nerves & cellular energy' },
-    { key: 'folate', label: 'Folate (B9)', short: 'Folate', unit: 'mcg', group: 'Vitamins', dailyDV: 400, desc: 'DNA synthesis & healthy cell division' },
+    { key: 'vitD', label: 'Vitamin D', short: 'Vit D', unit: 'µg', group: 'Vitamins', dailyDV: 15, desc: 'Bone density, mood & immune regulation' },
+    { key: 'vitB12', label: 'Vitamin B12', short: 'B12', unit: 'µg', group: 'Vitamins', dailyDV: 2.4, desc: 'Red blood cells, nerves & cellular energy' },
+    { key: 'folate', label: 'Folate (B9)', short: 'Folate', unit: 'µg', group: 'Vitamins', dailyDV: 400, desc: 'DNA synthesis & healthy cell division' },
     { key: 'vitC', label: 'Vitamin C', short: 'Vit C', unit: 'mg', group: 'Vitamins', dailyDV: 90, desc: 'Collagen synthesis, antioxidant & iron absorption' },
-    { key: 'vitA', label: 'Vitamin A', short: 'Vit A', unit: 'mcg', group: 'Vitamins', dailyDV: 900, desc: 'Vision, skin renewal & immune defense' },
+    { key: 'vitA', label: 'Vitamin A', short: 'Vit A', unit: 'µg', group: 'Vitamins', dailyDV: 900, desc: 'Vision, skin renewal & immune defense' },
     { key: 'vitE', label: 'Vitamin E', short: 'Vit E', unit: 'mg', group: 'Vitamins', dailyDV: 15, desc: 'Cell membrane antioxidant protection' },
-    { key: 'vitK', label: 'Vitamin K', short: 'Vit K', unit: 'mcg', group: 'Vitamins', dailyDV: 120, desc: 'Blood clotting & bone mineralization' },
+    { key: 'vitK', label: 'Vitamin K', short: 'Vit K', unit: 'µg', group: 'Vitamins', dailyDV: 120, desc: 'Blood clotting & bone mineralization' },
     { key: 'iron', label: 'Iron', short: 'Iron', unit: 'mg', group: 'Minerals', dailyDV: 18, desc: 'Oxygen transport & sustained energy' },
     { key: 'calcium', label: 'Calcium', short: 'Calcium', unit: 'mg', group: 'Minerals', dailyDV: 1000, desc: 'Skeletal strength & muscle contraction' },
     { key: 'magnesium', label: 'Magnesium', short: 'Mag', unit: 'mg', group: 'Minerals', dailyDV: 400, desc: 'Sleep quality, nerve signaling & recovery' },
