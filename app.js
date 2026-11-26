@@ -983,11 +983,52 @@
   }
 
   /* ==================== MODALS: OPEN / CLOSE ==================== */
+  let lockedScrollY = null;
+
+  function lockBackgroundScroll() {
+    if (lockedScrollY !== null) return;
+    lockedScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+    document.documentElement.classList.add('modal-open');
+    document.body.classList.add('modal-open');
+    document.body.style.top = `-${lockedScrollY}px`;
+  }
+
+  function unlockBackgroundScroll() {
+    if (lockedScrollY === null) return;
+    const restoreY = lockedScrollY;
+    lockedScrollY = null;
+    const htmlEl = document.documentElement;
+    const prevBehavior = htmlEl.style.scrollBehavior;
+    htmlEl.style.scrollBehavior = 'auto';
+    htmlEl.classList.remove('modal-open');
+    document.body.classList.remove('modal-open');
+    document.body.style.top = '';
+    window.scrollTo(0, restoreY);
+    requestAnimationFrame(() => {
+      htmlEl.style.scrollBehavior = prevBehavior;
+    });
+  }
+
+  // Prevent iOS Safari rubber-band scrolling on dimmed backdrop / modal headers & footers
+  document.addEventListener(
+    'touchmove',
+    (e) => {
+      if (lockedScrollY === null) return;
+      const scrollable = e.target.closest('.modal-body, .recipe-picker-list, .scan-results-list');
+      if (!scrollable || scrollable.scrollHeight <= scrollable.clientHeight + 1) {
+        e.preventDefault();
+      }
+    },
+    { passive: false }
+  );
+
   function openModal(id) {
     const el = $(id);
     if (!el) return;
     el.hidden = false;
-    document.body.style.overflow = 'hidden';
+    lockBackgroundScroll();
+    const body = el.querySelector('.modal-body');
+    if (body) body.scrollTop = 0;
   }
 
   function closeModal(id) {
@@ -999,7 +1040,7 @@
     if (id === 'food-log-modal') editingEntryId = null;
     el.hidden = true;
     const anyOpen = [...document.querySelectorAll('.modal-backdrop')].some((m) => !m.hidden);
-    if (!anyOpen) document.body.style.overflow = '';
+    if (!anyOpen) unlockBackgroundScroll();
   }
 
   /* ==================== FOOD / RECIPE CUSTOMIZATION MODAL ==================== */

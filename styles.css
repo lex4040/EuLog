@@ -1772,6 +1772,20 @@ button {
 }
 
 /* ==================== MODALS ==================== */
+html.modal-open {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body.modal-open {
+  position: fixed;
+  left: 0;
+  right: 0;
+  width: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -1782,6 +1796,8 @@ button {
   align-items: flex-end;
   justify-content: center;
   padding: 12px;
+  overscroll-behavior: contain;
+  touch-action: none;
 }
 
 .modal-backdrop[hidden] {
@@ -1792,6 +1808,7 @@ button {
   width: 100%;
   max-width: 520px;
   max-height: 90vh;
+  max-height: 90dvh;
   background: var(--sheet);
   border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
@@ -1799,6 +1816,8 @@ button {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
   animation: fadeUp 0.2s var(--ease);
 }
 
@@ -1813,6 +1832,7 @@ button {
   gap: 12px;
   padding: 16px 18px 12px;
   border-bottom: 1px solid var(--rule);
+  touch-action: none;
 }
 
 .modal-eyebrow {
@@ -1844,6 +1864,9 @@ button {
 .modal-body {
   padding: 16px 18px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   display: grid;
   gap: 14px;
 }
@@ -1855,6 +1878,7 @@ button {
   gap: 10px;
   padding: 12px 18px 16px;
   border-top: 1px solid var(--rule);
+  touch-action: none;
 }
 
 .modal-foot-inline {
