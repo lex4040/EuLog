@@ -146,6 +146,24 @@
               </div>
               <div class="bar-track"><div id="macro-fiber-bar" class="bar-fill fill-fiber"></div></div>
             </div>
+
+            <div class="macro-limit-grid">
+              <div class="macro-row">
+                <div class="macro-meta">
+                  <span>Sugars</span>
+                  <strong id="macro-sugar-val">0 / 50g</strong>
+                </div>
+                <div class="bar-track"><div id="macro-sugar-bar" class="bar-fill fill-sugar"></div></div>
+              </div>
+
+              <div class="macro-row">
+                <div class="macro-meta">
+                  <span>Salt</span>
+                  <strong id="macro-salt-val">0.0 / 5g</strong>
+                </div>
+                <div class="bar-track"><div id="macro-salt-bar" class="bar-fill fill-salt"></div></div>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -447,7 +465,7 @@
           <div class="recipe-add-picker">
             <div class="recipe-picker-head">
               <span class="subrecipe-micro-label">Add from Ingredients DB (per 100 g / 100 ml):</span>
-              <button id="open-new-ing-from-recipe-btn" type="button" class="link-btn">+ New Ingredient</button>
+              <button id="open-new-ing-from-recipe-btn" type="button" class="text-link-btn">+ New Ingredient</button>
             </div>
             <input id="recipe-ing-search" type="search" class="text-input subrecipe-input" placeholder="Search ingredients (e.g., carrots, chicken, feta, olive oil, salt)..." autocomplete="off" />
             <div id="recipe-ing-picker-list" class="recipe-picker-list"></div>
@@ -594,60 +612,98 @@
     </div>
   </div>
 
-  <!-- ==================== MODAL: ADD CUSTOM FOOD ==================== -->
+  <!-- ==================== MODAL: CREATE CUSTOM RECIPE ==================== -->
   <div id="custom-food-modal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="custom-food-modal-title">
     <div class="modal-sheet">
       <div class="modal-head">
         <div>
           <span class="modal-eyebrow">Personal Library</span>
-          <h3 id="custom-food-modal-title" class="modal-title">Add Custom Food</h3>
+          <h3 id="custom-food-modal-title" class="modal-title">Create Custom Recipe</h3>
         </div>
         <button type="button" class="modal-close-btn" data-close-modal="custom-food-modal" aria-label="Close">&times;</button>
       </div>
 
       <form id="custom-food-form" class="modal-body">
+        <div class="foods-mode-bar">
+          <div class="segmented-toggle" role="tablist" aria-label="Custom recipe creation mode">
+            <button id="cf-mode-ingredients-btn" type="button" class="seg-btn is-active" data-cf-mode="ingredients">From Ingredients</button>
+            <button id="cf-mode-manual-btn" type="button" class="seg-btn" data-cf-mode="manual">Manual Macros</button>
+          </div>
+        </div>
+
         <div class="form-field">
-          <label for="cf-name" class="field-label">Food Name</label>
-          <input id="cf-name" type="text" class="text-input" placeholder="e.g., Homemade Chia Pudding" required />
+          <label for="cf-name" class="field-label">Recipe Name</label>
+          <input id="cf-name" type="text" class="text-input" placeholder="e.g., My Chicken Bowl, Homemade Smoothie" required />
         </div>
-        <div class="form-grid-2">
-          <div class="form-field">
-            <label for="cf-serving" class="field-label">Serving Size</label>
-            <input id="cf-serving" type="text" class="text-input" placeholder="e.g., 1 bowl (200g)" required />
-          </div>
-          <div class="form-field">
-            <label for="cf-calories" class="field-label">Calories (kcal)</label>
-            <input id="cf-calories" type="number" class="text-input" min="0" step="1" value="220" required />
-          </div>
-        </div>
-        <div class="form-grid-4">
-          <div class="form-field">
-            <label for="cf-protein" class="field-label">Protein (g)</label>
-            <input id="cf-protein" type="number" class="text-input" min="0" step="0.1" value="8" />
-          </div>
-          <div class="form-field">
-            <label for="cf-carbs" class="field-label">Carbs (g)</label>
-            <input id="cf-carbs" type="number" class="text-input" min="0" step="0.1" value="24" />
-          </div>
-          <div class="form-field">
-            <label for="cf-fat" class="field-label">Fat (g)</label>
-            <input id="cf-fat" type="number" class="text-input" min="0" step="0.1" value="10" />
-          </div>
-          <div class="form-field">
-            <label for="cf-fiber" class="field-label">Fiber (g)</label>
-            <input id="cf-fiber" type="number" class="text-input" min="0" step="0.1" value="6" />
+
+        <!-- Mode A: Build from Ingredients DB -->
+        <div id="cf-ingredients-section" class="cf-builder-section">
+          <div id="cf-builder-macros" class="modal-macro-strip"></div>
+          <div id="cf-builder-extra" class="modal-macro-extra"></div>
+
+          <div class="modal-vitals-box recipe-builder-box">
+            <div class="recipe-builder-head">
+              <div>
+                <h4 class="mini-section-title" style="margin:0;">Selected Ingredients <span id="cf-builder-weight" class="recipe-weight-chip">0 g</span></h4>
+                <span class="subrecipe-hint">Pick ingredients from the DB — macros calculate automatically</span>
+              </div>
+            </div>
+
+            <div id="cf-ingredients-list" class="recipe-ing-list"></div>
+
+            <div class="recipe-add-picker">
+              <div class="recipe-picker-head">
+                <span class="subrecipe-micro-label">Add from Ingredients DB (English or Ελληνικά):</span>
+                <button id="open-new-ing-from-cf-btn" type="button" class="text-link-btn">+ New Ingredient</button>
+              </div>
+              <input id="cf-ing-search" type="search" class="text-input subrecipe-input" placeholder="Search ingredients (e.g., chicken, κοτόπουλο, feta, olive oil)..." autocomplete="off" />
+              <div id="cf-ing-picker-list" class="recipe-picker-list"></div>
+            </div>
           </div>
         </div>
-        <div class="form-grid-2">
-          <div class="form-field">
-            <label for="cf-sugar" class="field-label">Sugars (g)</label>
-            <input id="cf-sugar" type="number" class="text-input" min="0" step="0.1" value="3" />
+
+        <!-- Mode B: Manual Macros -->
+        <div id="cf-manual-section" class="cf-builder-section" hidden>
+          <div class="form-grid-2">
+            <div class="form-field">
+              <label for="cf-serving" class="field-label">Serving Size</label>
+              <input id="cf-serving" type="text" class="text-input" placeholder="e.g., 1 bowl (200 g)" />
+            </div>
+            <div class="form-field">
+              <label for="cf-calories" class="field-label">Calories (kcal)</label>
+              <input id="cf-calories" type="number" class="text-input" min="0" step="1" value="220" />
+            </div>
           </div>
-          <div class="form-field">
-            <label for="cf-salt" class="field-label">Salt (g)</label>
-            <input id="cf-salt" type="number" class="text-input" min="0" step="0.05" value="0.5" />
+          <div class="form-grid-4">
+            <div class="form-field">
+              <label for="cf-protein" class="field-label">Protein (g)</label>
+              <input id="cf-protein" type="number" class="text-input" min="0" step="0.1" value="8" />
+            </div>
+            <div class="form-field">
+              <label for="cf-carbs" class="field-label">Carbs (g)</label>
+              <input id="cf-carbs" type="number" class="text-input" min="0" step="0.1" value="24" />
+            </div>
+            <div class="form-field">
+              <label for="cf-fat" class="field-label">Fat (g)</label>
+              <input id="cf-fat" type="number" class="text-input" min="0" step="0.1" value="10" />
+            </div>
+            <div class="form-field">
+              <label for="cf-fiber" class="field-label">Fiber (g)</label>
+              <input id="cf-fiber" type="number" class="text-input" min="0" step="0.1" value="6" />
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-field">
+              <label for="cf-sugar" class="field-label">Sugars (g)</label>
+              <input id="cf-sugar" type="number" class="text-input" min="0" step="0.1" value="3" />
+            </div>
+            <div class="form-field">
+              <label for="cf-salt" class="field-label">Salt (g)</label>
+              <input id="cf-salt" type="number" class="text-input" min="0" step="0.05" value="0.5" />
+            </div>
           </div>
         </div>
+
         <div class="modal-foot modal-foot-inline">
           <button type="button" class="btn btn-ghost" data-close-modal="custom-food-modal">Cancel</button>
           <button type="submit" class="btn btn-primary">Save &amp; Log</button>
@@ -784,6 +840,14 @@
           <div class="form-field">
             <label for="setting-fat-goal" class="field-label">Fat Goal (g)</label>
             <input id="setting-fat-goal" type="number" class="text-input" min="15" max="250" step="5" />
+          </div>
+          <div class="form-field">
+            <label for="setting-sugar-goal" class="field-label">Sugars Limit (g)</label>
+            <input id="setting-sugar-goal" type="number" class="text-input" min="10" max="200" step="5" />
+          </div>
+          <div class="form-field">
+            <label for="setting-salt-goal" class="field-label">Salt Limit (g)</label>
+            <input id="setting-salt-goal" type="number" class="text-input" min="1" max="15" step="0.5" />
           </div>
         </div>
 

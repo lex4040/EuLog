@@ -690,6 +690,15 @@
   function getOriginalRecipeItems(food) {
     if (!food) return [];
 
+    // 0. User-built custom recipe with explicit ingredients
+    if (Array.isArray(food.recipeItems) && food.recipeItems.length > 0) {
+      return food.recipeItems.map((it) => ({
+        ingredientId: it.ingredientId,
+        amount: Number(it.amount) || 0,
+        ...(it.inlineIngredient ? { inlineIngredient: it.inlineIngredient } : {}),
+      }));
+    }
+
     // 1. Hand-crafted signature recipe
     if (CURATED_RECIPES[food.id]) {
       return CURATED_RECIPES[food.id].map(([ingredientId, amount]) => ({
@@ -966,6 +975,191 @@
     return Number(((sodiumMg * 2.5) / 1000).toFixed(2));
   }
 
+  /* ==================== GREEK & GREEKLISH BILINGUAL SEARCH ==================== */
+  const GREEK_DIGRAPHS = [
+    ['ου', 'ou'],
+    ['αι', 'ai'],
+    ['ει', 'ei'],
+    ['οι', 'oi'],
+    ['αυ', 'av'],
+    ['ευ', 'ev'],
+    ['μπ', 'b'],
+    ['ντ', 'd'],
+    ['γκ', 'g'],
+    ['γγ', 'g'],
+    ['τζ', 'tz'],
+    ['τσ', 'ts'],
+  ];
+
+  const GREEK_CHAR_MAP = {
+    α: 'a', β: 'v', γ: 'g', δ: 'd', ε: 'e', ζ: 'z', η: 'i', θ: 'th',
+    ι: 'i', κ: 'k', λ: 'l', μ: 'm', ν: 'n', ξ: 'x', ο: 'o', π: 'p',
+    ρ: 'r', σ: 's', ς: 's', τ: 't', υ: 'y', φ: 'f', χ: 'h', ψ: 'ps', ω: 'o',
+  };
+
+  // Phonetic Greek/Greeklish stems -> exact English food/ingredient phrases
+  const GREEK_ALIASES = [
+    ['kotopoul', ['chicken']],
+    ['kotosoup', ['avgolemono', 'chicken soup']],
+    ['moshar', ['beef', 'veal']],
+    ['hirin', ['pork']],
+    ['hoirin', ['pork']],
+    ['arnak', ['lamb']],
+    ['arni', ['lamb']],
+    ['avg', ['egg']],
+    ['rizi', ['rice']],
+    ['rizogal', ['rizogalo', 'rice pudding']],
+    ['patat', ['potato']],
+    ['domat', ['tomato']],
+    ['tomat', ['tomato']],
+    ['agour', ['cucumber']],
+    ['kremid', ['onion']],
+    ['skord', ['garlic']],
+    ['karot', ['carrot']],
+    ['spanak', ['spinach']],
+    ['maroul', ['lettuce']],
+    ['lahan', ['cabbage']],
+    ['melitzan', ['eggplant']],
+    ['kolokith', ['zucchini']],
+    ['piperi', ['pepper']],
+    ['manitar', ['mushroom']],
+    ['anith', ['dill']],
+    ['maintan', ['parsley']],
+    ['maidan', ['parsley']],
+    ['diosm', ['mint']],
+    ['rigan', ['oregano']],
+    ['lemon', ['lemon']],
+    ['elaiolad', ['olive oil']],
+    ['ladi', ['olive oil']],
+    ['voutir', ['butter']],
+    ['alat', ['salt']],
+    ['zahar', ['sugar']],
+    ['meli', ['honey']],
+    ['gala', ['milk']],
+    ['giaourt', ['yogurt']],
+    ['yaourt', ['yogurt']],
+    ['tiri', ['cheese']],
+    ['feta', ['feta']],
+    ['psom', ['bread']],
+    ['makaron', ['pasta', 'spaghetti']],
+    ['krithar', ['orzo']],
+    ['fake', ['lentil']],
+    ['fasoli', ['bean']],
+    ['revith', ['chickpea']],
+    ['solom', ['salmon']],
+    ['garid', ['shrimp']],
+    ['psar', ['fish']],
+    ['kalamar', ['squid', 'calamari']],
+    ['htapod', ['octopus']],
+    ['karid', ['walnut']],
+    ['amigdal', ['almond']],
+    ['elie', ['olive']],
+    ['milo', ['apple']],
+    ['banan', ['banana']],
+    ['portokal', ['orange']],
+    ['kafe', ['coffee', 'espresso']],
+    ['sokolat', ['chocolate']],
+    ['soup', ['soup']],
+    ['salat', ['salad']],
+    ['horiatik', ['horiatiki', 'greek salad']],
+    ['pita', ['pita']],
+    ['zomo', ['broth']],
+    ['arak', ['peas']],
+    ['fasolak', ['green beans']],
+    ['bamie', ['okra']],
+    ['aginar', ['artichoke']],
+    ['pras', ['leek']],
+    ['selin', ['celery']],
+    ['kalabok', ['corn']],
+    ['avokad', ['avocado']],
+    ['brokol', ['broccoli']],
+    ['vrom', ['oats']],
+    ['kima', ['ground beef', 'bolognese', 'kima']],
+    ['biftek', ['bifteki', 'burger']],
+    ['giros', ['gyros']],
+    ['giro', ['gyros']],
+    ['mousak', ['moussaka', 'mousakas']],
+    ['pastitsi', ['pastitsio']],
+    ['avgolemon', ['avgolemono']],
+    ['gemist', ['gemista']],
+    ['baklav', ['baklava']],
+    ['loukoum', ['loukoumades']],
+    ['tiropit', ['tiropita', 'tyropita']],
+    ['spanakopit', ['spanakopita']],
+    ['fasolad', ['fasolada']],
+    ['tzatzik', ['tzatziki']],
+    ['dakos', ['dakos']],
+    ['fava', ['fava']],
+    ['souvlak', ['souvlaki']],
+  ];
+
+  function transliterateGreek(str) {
+    let s = String(str || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+    for (const [gr, lat] of GREEK_DIGRAPHS) {
+      if (s.includes(gr)) s = s.split(gr).join(lat);
+    }
+    let out = '';
+    for (let i = 0; i < s.length; i += 1) {
+      const ch = s[i];
+      out += GREEK_CHAR_MAP[ch] || ch;
+    }
+    return out;
+  }
+
+  function phoneticNormalize(str) {
+    return transliterateGreek(str)
+      .replace(/ch|kh/g, 'h')
+      .replace(/ph/g, 'f')
+      .replace(/mp/g, 'b')
+      .replace(/nt/g, 'd')
+      .replace(/gk|gg/g, 'g')
+      .replace(/y/g, 'i')
+      .replace(/([a-z])\1+/g, '$1')
+      .trim();
+  }
+
+  function matchesSearchQuery(haystack, rawQuery) {
+    const q = String(rawQuery || '').trim();
+    if (!q) return true;
+
+    const hayLow = String(haystack || '').toLowerCase();
+    const hayPhon = phoneticNormalize(haystack);
+    const tokens = q.split(/\s+/).filter(Boolean);
+
+    return tokens.every((tok) => {
+      const lowTok = tok.toLowerCase();
+      if (hayLow.includes(lowTok)) return true;
+
+      const transTok = transliterateGreek(tok);
+      if (transTok && hayLow.includes(transTok)) return true;
+
+      const phonTok = phoneticNormalize(tok);
+      if (phonTok && hayPhon.includes(phonTok)) return true;
+
+      // Also match singular stem when user types Greek plural/nominative ending (-s)
+      if (phonTok.length >= 4 && phonTok.endsWith('s') && hayPhon.includes(phonTok.slice(0, -1))) {
+        return true;
+      }
+
+      // Check bilingual Greek/Greeklish -> English food phrases (restrict to realistic inflection suffixes)
+      for (const [stem, candidates] of GREEK_ALIASES) {
+        const isInflectedMatch =
+          phonTok.startsWith(stem) && phonTok.length - stem.length <= 3;
+        const isPrefixTypeMatch =
+          phonTok.length >= 4 && stem.startsWith(phonTok) && stem.length - phonTok.length <= 3;
+        if (isInflectedMatch || isPrefixTypeMatch) {
+          if (candidates.some((c) => hayLow.includes(c) || hayPhon.includes(phoneticNormalize(c)))) {
+            return true;
+          }
+        }
+      }
+      return false;
+    });
+  }
+
   global.EuLogRecipes = {
     CURATED_RECIPES,
     getOriginalRecipeItems,
@@ -977,5 +1171,8 @@
     buildFoodFromRecipeItems,
     ingredientToFood,
     getFoodSaltGrams,
+    transliterateGreek,
+    phoneticNormalize,
+    matchesSearchQuery,
   };
 })(window);

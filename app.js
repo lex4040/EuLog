@@ -51,6 +51,7 @@
     buildFoodFromRecipeItems,
     ingredientToFood,
     getFoodSaltGrams,
+    matchesSearchQuery,
   } = window.EuLogRecipes;
 
   let state = loadState();
@@ -71,6 +72,9 @@
   let activeRecipeItems = [];
   let recipePickerQuery = '';
   let editingEntryId = null;
+  let customFoodMode = 'ingredients'; // 'ingredients' | 'manual'
+  let customFoodItems = [];
+  let customFoodPickerQuery = '';
   let pendingMealTarget = guessDefaultMeal();
   let deferredInstallPrompt = null;
   let toastTimer = null;
@@ -219,6 +223,8 @@
     const carbsGoal = Number(state.settings.carbsGoal) || 225;
     const fatGoal = Number(state.settings.fatGoal) || 65;
     const fiberGoal = Number(state.settings.fiberGoal) || 28;
+    const sugarGoal = Number(state.settings.sugarGoal) || 50;
+    const saltGoal = Number(state.settings.saltGoal) || 5;
 
     const cals = Math.round(totals.calories);
     $('today-calories').textContent = cals.toLocaleString();
@@ -232,10 +238,25 @@
       $(valId).textContent = `${Math.round(cur)} / ${goal}g`;
       $(barId).style.width = `${Math.min(100, Math.round((cur / Math.max(1, goal)) * 100))}%`;
     };
+    const setLimitBar = (valId, barId, cur, goal, decimals = 1) => {
+      const valEl = $(valId);
+      const barEl = $(barId);
+      const isOver = cur > goal;
+      if (valEl) {
+        valEl.textContent = `${cur.toFixed(decimals)} / ${goal}g`;
+        valEl.classList.toggle('is-over', isOver);
+      }
+      if (barEl) {
+        barEl.style.width = `${Math.min(100, Math.round((cur / Math.max(0.1, goal)) * 100))}%`;
+        barEl.classList.toggle('is-over', isOver);
+      }
+    };
     setBar('macro-protein-val', 'macro-protein-bar', totals.protein, proteinGoal);
     setBar('macro-carbs-val', 'macro-carbs-bar', totals.carbs, carbsGoal);
     setBar('macro-fat-val', 'macro-fat-bar', totals.fat, fatGoal);
     setBar('macro-fiber-val', 'macro-fiber-bar', totals.fiber, fiberGoal);
+    setLimitBar('macro-sugar-val', 'macro-sugar-bar', totals.sugar || 0, sugarGoal, 1);
+    setLimitBar('macro-salt-val', 'macro-salt-bar', totals.salt || 0, saltGoal, 1);
 
     // Inline Daily Supplements quick strip
     const totalSupps = state.supplements.length;
@@ -707,14 +728,14 @@
         )
         .join('');
 
-      const q = foodsSearchQuery.trim().toLowerCase();
+      const q = foodsSearchQuery.trim();
       let filtered = allIngs.filter((ing) => {
         if (selectedIngredientCategory === 'Custom' && !ing.isCustom) return false;
         if (selectedIngredientCategory !== 'All' && selectedIngredientCategory !== 'Custom' && ing.category !== selectedIngredientCategory) {
           return false;
         }
         if (q) {
-          return `${ing.name} ${ing.category}`.toLowerCase().includes(q);
+          return matchesSearchQuery(`${ing.name} ${ing.category}`, q);
         }
         return true;
       });
@@ -758,8 +779,8 @@
     // Recipes mode
     const allFoods = getAllFoods();
     const customCount = (state.customFoods || []).length;
-    if (customBtn) customBtn.textContent = '+ Custom Food';
-    if (searchInput) searchInput.placeholder = 'Search 2,154 recipes (e.g., avgolemono, gyros, moussaka, salmon)...';
+    if (customBtn) customBtn.textContent = '+ Custom Recipe';
+    if (searchInput) searchInput.placeholder = 'Search 2,154 recipes (English or Ελληνικά, e.g., αυγολέμονο)...';
     $('foods-count-subtitle').textContent =
       customCount > 0
         ? `${USDA_FOODS.length.toLocaleString()} customizable recipes + ${customCount} custom · ${getAllIngredients().length} ingredients DB`
@@ -776,7 +797,7 @@
       )
       .join('');
 
-    const q = foodsSearchQuery.trim().toLowerCase();
+    const q = foodsSearchQuery.trim();
     const favSet = new Set(state.favorites || []);
 
     let filtered = allFoods.filter((f) => {
@@ -791,8 +812,7 @@
         return false;
       }
       if (q) {
-        const hay = `${f.name} ${f.category} ${f.prompt || ''}`.toLowerCase();
-        return hay.includes(q);
+        return matchesSearchQuery(`${f.name} ${f.category} ${f.prompt || ''}`, q);
       }
       return true;
     });
@@ -999,7 +1019,7 @@
   function renderRecipePickerList() {
     const pickerEl = $('recipe-ing-picker-list');
     if (!pickerEl) return;
-    const q = recipePickerQuery.trim().toLowerCase();
+    const q = recipePickerQuery.trim();
     const allIngs = getAllIngredients();
     const popularIds = [
       'olive-oil',
@@ -1019,7 +1039,7 @@
     let matches;
     if (q) {
       matches = allIngs
-        .filter((ing) => `${ing.name} ${ing.category}`.toLowerCase().includes(q))
+        .filter((ing) => matchesSearchQuery(`${ing.name} ${ing.category}`, q))
         .slice(0, 12);
     } else {
       const existingSet = new Set(activeRecipeItems.map((it) => it.ingredientId));
@@ -1295,6 +1315,163 @@
     ).join('');
   }
 
+  /* ==================== CREATE CUSTOM RECIPE BUILDER ==================== */
+  function openCustomFoodModal() {
+    $('custom-food-form').reset();
+    customFoodMode = 'ingredients';
+    customFoodItems = [];
+    customFoodPickerQuery = '';
+    if ($('cf-ing-search')) $('cf-ing-search').value = '';
+    renderCustomFoodBuilder();
+    openModal('custom-food-modal');
+  }
+
+  function renderCustomFoodBuilder() {
+    const isIngMode = customFoodMode === 'ingredients';
+    $('cf-mode-ingredients-btn')?.classList.toggle('is-active', isIngMode);
+    $('cf-mode-manual-btn')?.classList.toggle('is-active', !isIngMode);
+    if ($('cf-ingredients-section')) $('cf-ingredients-section').hidden = !isIngMode;
+    if ($('cf-manual-section')) $('cf-manual-section').hidden = isIngMode;
+
+    if (!isIngMode) return;
+
+    const totals = computeRecipeTotals(customFoodItems, state.customIngredients);
+    if ($('cf-builder-weight')) $('cf-builder-weight').textContent = `${totals.totalAmount} g`;
+
+    if ($('cf-builder-macros')) {
+      $('cf-builder-macros').innerHTML = `
+        <div class="modal-macro-cell"><strong>${totals.calories}</strong><span>kcal</span></div>
+        <div class="modal-macro-cell"><strong>${totals.protein.toFixed(1)} g</strong><span>Protein</span></div>
+        <div class="modal-macro-cell"><strong>${totals.carbs.toFixed(1)} g</strong><span>Carbs</span></div>
+        <div class="modal-macro-cell"><strong>${totals.fat.toFixed(1)} g</strong><span>Fat</span></div>
+      `;
+    }
+    if ($('cf-builder-extra')) {
+      $('cf-builder-extra').innerHTML = `
+        <div class="modal-macro-extra-cell"><strong>${totals.sugar.toFixed(1)} g</strong><span>Sugars</span></div>
+        <div class="modal-macro-extra-cell"><strong>${totals.salt.toFixed(2)} g</strong><span>Salt</span></div>
+        <div class="modal-macro-extra-cell"><strong>${totals.fiber.toFixed(1)} g</strong><span>Fiber</span></div>
+      `;
+    }
+
+    const listEl = $('cf-ingredients-list');
+    if (listEl) {
+      if (customFoodItems.length === 0) {
+        listEl.innerHTML =
+          '<p class="section-subtitle" style="margin:2px 0;">No ingredients added yet — pick ingredients below to build your recipe.</p>';
+      } else {
+        listEl.innerHTML = customFoodItems
+          .map((item, idx) => {
+            const ing = resolveIngredient(item, state.customIngredients);
+            if (!ing) return '';
+            const unit = ing.unit || 'g';
+            const amt = Number(item.amount) || 0;
+            const ratio = amt / 100;
+            const kcal = Math.round((Number(ing.calories) || 0) * ratio);
+            const p = ((Number(ing.protein) || 0) * ratio).toFixed(1);
+            const c = ((Number(ing.carbs) || 0) * ratio).toFixed(1);
+            const sug = ((Number(ing.sugar) || 0) * ratio).toFixed(1);
+            const salt = ((Number(ing.salt) || 0) * ratio).toFixed(2);
+            const step = item.ingredientId === 'table-salt' || amt < 5 ? 0.5 : amt <= 25 ? 5 : 10;
+            return `
+              <div class="recipe-ing-row">
+                <div class="recipe-ing-top">
+                  <div class="recipe-ing-info">
+                    <span class="recipe-ing-name">${escapeHtml(ing.name)}</span>
+                    <span class="recipe-ing-macros">${kcal} kcal · ${p}g P · ${c}g C · ${sug}g Sugars · ${salt}g Salt</span>
+                  </div>
+                  <button type="button" class="ing-remove-btn" data-cf-remove-idx="${idx}" aria-label="Remove ${escapeHtml(ing.name)}">&times;</button>
+                </div>
+                <div class="recipe-ing-controls">
+                  <div class="qty-stepper">
+                    <button type="button" class="qty-step-btn" data-cf-step-idx="${idx}" data-cf-step-delta="${-step}" aria-label="Decrease amount">&minus;</button>
+                    <input type="number" class="qty-input" data-cf-qty-idx="${idx}" min="0" max="2000" step="any" value="${amt}" aria-label="${escapeHtml(ing.name)} amount" />
+                    <button type="button" class="qty-step-btn" data-cf-step-idx="${idx}" data-cf-step-delta="${step}" aria-label="Increase amount">+</button>
+                    <span class="qty-unit">${escapeHtml(unit)}</span>
+                  </div>
+                  <span class="entry-meta">${Math.round(ing.calories)} kcal / 100${escapeHtml(unit)}</span>
+                </div>
+              </div>
+            `;
+          })
+          .join('');
+      }
+    }
+
+    renderCustomFoodPickerList();
+  }
+
+  function renderCustomFoodPickerList() {
+    const pickerEl = $('cf-ing-picker-list');
+    if (!pickerEl) return;
+    const q = customFoodPickerQuery.trim();
+    const allIngs = getAllIngredients();
+    const starterIds = [
+      'chicken-breast',
+      'white-rice-cooked',
+      'whole-egg',
+      'greek-yogurt-2',
+      'olive-oil',
+      'feta-cheese',
+      'tomato',
+      'rolled-oats',
+    ];
+
+    let matches;
+    if (q) {
+      matches = allIngs
+        .filter((ing) => matchesSearchQuery(`${ing.name} ${ing.category}`, q))
+        .slice(0, 12);
+    } else {
+      const existingSet = new Set(customFoodItems.map((it) => it.ingredientId));
+      matches = starterIds
+        .map((id) => findIngredientById(id))
+        .filter((ing) => ing && !existingSet.has(ing.id))
+        .slice(0, 6);
+    }
+
+    if (matches.length === 0) {
+      pickerEl.innerHTML =
+        '<p class="section-subtitle" style="margin:2px 0;">No ingredient matched. Tap "+ New Ingredient" above to add it.</p>';
+      return;
+    }
+
+    pickerEl.innerHTML = matches
+      .map((ing) => {
+        const unit = ing.unit || 'g';
+        return `
+          <div class="picker-ing-row">
+            <div class="recipe-ing-info">
+              <span class="recipe-ing-name">${escapeHtml(ing.name)}</span>
+              <span class="recipe-ing-macros">${Math.round(ing.calories)} kcal · ${ing.protein}g P · ${ing.carbs}g C · ${ing.sugar}g Sugars · ${ing.salt}g Salt / 100${escapeHtml(unit)}</span>
+            </div>
+            <div class="picker-ing-add-wrap">
+              <input type="number" class="picker-qty-input" data-cf-picker-qty-for="${escapeHtml(ing.id)}" min="0.5" max="1000" step="any" value="${ing.defaultAmount || 50}" aria-label="Amount in ${escapeHtml(unit)}" />
+              <span class="qty-unit">${escapeHtml(unit)}</span>
+              <button type="button" class="btn btn-soft btn-xs" data-cf-picker-add-ing="${escapeHtml(ing.id)}">+ Add</button>
+            </div>
+          </div>
+        `;
+      })
+      .join('');
+  }
+
+  function addIngredientToCustomRecipe(ingredientId, customAmount) {
+    const ing = findIngredientById(ingredientId);
+    if (!ing) return;
+    const amt = Math.max(0.5, Number(customAmount) || ing.defaultAmount || 50);
+    const existing = customFoodItems.find((it) => it.ingredientId === ing.id);
+    if (existing) {
+      existing.amount = Number((Number(existing.amount) + amt).toFixed(1));
+    } else {
+      customFoodItems.push({ ingredientId: ing.id, amount: amt });
+    }
+    customFoodPickerQuery = '';
+    if ($('cf-ing-search')) $('cf-ing-search').value = '';
+    renderCustomFoodBuilder();
+    showToast(`Added ${ing.name} (${amt} ${ing.unit || 'g'})`);
+  }
+
   /* ==================== SETTINGS MODAL ==================== */
   function openSettingsModal() {
     $('setting-dv-profile').value = state.settings.dvProfile || 'standard';
@@ -1302,6 +1479,8 @@
     $('setting-protein-goal').value = state.settings.proteinGoal || 110;
     $('setting-carbs-goal').value = state.settings.carbsGoal || 225;
     $('setting-fat-goal').value = state.settings.fatGoal || 65;
+    if ($('setting-sugar-goal')) $('setting-sugar-goal').value = state.settings.sugarGoal || 50;
+    if ($('setting-salt-goal')) $('setting-salt-goal').value = state.settings.saltGoal || 5;
 
     const st = window.EuLogVision.getStatus();
     $('preload-siglip-status').textContent = st.status === 'ready' ? `Cached (${st.device.toUpperCase()})` : '';
@@ -1458,8 +1637,7 @@
         $('custom-ingredient-form').reset();
         openModal('custom-ingredient-modal');
       } else {
-        $('custom-food-form').reset();
-        openModal('custom-food-modal');
+        openCustomFoodModal();
       }
     });
 
@@ -1468,13 +1646,92 @@
       openModal('custom-ingredient-modal');
     });
 
+    $('open-new-ing-from-cf-btn')?.addEventListener('click', () => {
+      $('custom-ingredient-form').reset();
+      openModal('custom-ingredient-modal');
+    });
+
+    $('cf-ing-search')?.addEventListener('input', (e) => {
+      customFoodPickerQuery = e.target.value;
+      renderCustomFoodPickerList();
+    });
+
+    $('cf-ingredients-list')?.addEventListener('input', (e) => {
+      const inp = e.target.closest('[data-cf-qty-idx]');
+      if (!inp) return;
+      const idx = Number(inp.dataset.cfQtyIdx);
+      if (!Number.isInteger(idx) || !customFoodItems[idx]) return;
+      const val = Math.max(0, Number(inp.value) || 0);
+      customFoodItems[idx].amount = val;
+      const ing = resolveIngredient(customFoodItems[idx], state.customIngredients);
+      const row = inp.closest('.recipe-ing-row');
+      if (ing && row) {
+        const ratio = val / 100;
+        const macEl = row.querySelector('.recipe-ing-macros');
+        if (macEl) {
+          macEl.textContent = `${Math.round((Number(ing.calories) || 0) * ratio)} kcal · ${((Number(ing.protein) || 0) * ratio).toFixed(1)}g P · ${((Number(ing.carbs) || 0) * ratio).toFixed(1)}g C · ${((Number(ing.sugar) || 0) * ratio).toFixed(1)}g Sugars · ${((Number(ing.salt) || 0) * ratio).toFixed(2)}g Salt`;
+        }
+      }
+      const totals = computeRecipeTotals(customFoodItems, state.customIngredients);
+      if ($('cf-builder-weight')) $('cf-builder-weight').textContent = `${totals.totalAmount} g`;
+      if ($('cf-builder-macros')) {
+        $('cf-builder-macros').innerHTML = `
+          <div class="modal-macro-cell"><strong>${totals.calories}</strong><span>kcal</span></div>
+          <div class="modal-macro-cell"><strong>${totals.protein.toFixed(1)} g</strong><span>Protein</span></div>
+          <div class="modal-macro-cell"><strong>${totals.carbs.toFixed(1)} g</strong><span>Carbs</span></div>
+          <div class="modal-macro-cell"><strong>${totals.fat.toFixed(1)} g</strong><span>Fat</span></div>
+        `;
+      }
+      if ($('cf-builder-extra')) {
+        $('cf-builder-extra').innerHTML = `
+          <div class="modal-macro-extra-cell"><strong>${totals.sugar.toFixed(1)} g</strong><span>Sugars</span></div>
+          <div class="modal-macro-extra-cell"><strong>${totals.salt.toFixed(2)} g</strong><span>Salt</span></div>
+          <div class="modal-macro-extra-cell"><strong>${totals.fiber.toFixed(1)} g</strong><span>Fiber</span></div>
+        `;
+      }
+    });
+
     $('custom-food-form').addEventListener('submit', (e) => {
       e.preventDefault();
       const name = $('cf-name').value.trim();
-      const serving = $('cf-serving').value.trim();
-      if (!name || !serving) return;
-      const saltVal = Number($('cf-salt').value) || 0;
+      if (!name) return;
 
+      if (customFoodMode === 'ingredients') {
+        if (customFoodItems.length === 0) {
+          showToast('Add at least one ingredient from the DB');
+          return;
+        }
+        const shell = {
+          id: makeId('cfood'),
+          name,
+          category: 'Custom',
+          serving: '1 recipe',
+          grams: 100,
+          description: `${name} — custom recipe built from ingredients.`,
+          prompt: name.toLowerCase(),
+          colorHint: 'brown',
+          isCustom: true,
+        };
+        const built = buildFoodFromRecipeItems(
+          shell,
+          customFoodItems,
+          state.customIngredients,
+          customFoodItems
+        );
+        const storedCustom = {
+          ...built,
+          recipeItems: cloneRecipeItems(customFoodItems),
+        };
+        state.customFoods.unshift(storedCustom);
+        persist();
+        closeModal('custom-food-modal');
+        logFoodEntry(storedCustom, pendingMealTarget || guessDefaultMeal(), 1, selectedDateKey);
+        if (activeTab === 'foods') renderFoodsLibrary();
+        return;
+      }
+
+      const serving = $('cf-serving').value.trim() || '1 serving (100 g)';
+      const saltVal = Number($('cf-salt').value) || 0;
       const customFood = {
         id: makeId('cfood'),
         name,
@@ -1529,6 +1786,8 @@
 
       if (!$('food-log-modal').hidden && activeModalFood) {
         addIngredientToActiveRecipe(newIng.id, newIng.defaultAmount);
+      } else if (!$('custom-food-modal').hidden && customFoodMode === 'ingredients') {
+        addIngredientToCustomRecipe(newIng.id, newIng.defaultAmount);
       } else {
         if (activeTab === 'foods') renderFoodsLibrary();
         showToast(`Added ${name} to Ingredients DB`);
@@ -1689,7 +1948,7 @@
         return;
       }
       const hits = getAllFoods()
-        .filter((f) => `${f.name} ${f.category}`.toLowerCase().includes(q))
+        .filter((f) => matchesSearchQuery(`${f.name} ${f.category} ${f.prompt || ''}`, q))
         .slice(0, 8);
       if (hits.length === 0) {
         box.innerHTML = '<p class="section-subtitle">No matching recipes found.</p>';
@@ -1731,6 +1990,12 @@
       state.settings.proteinGoal = Math.max(20, Number($('setting-protein-goal').value) || 110);
       state.settings.carbsGoal = Math.max(20, Number($('setting-carbs-goal').value) || 225);
       state.settings.fatGoal = Math.max(15, Number($('setting-fat-goal').value) || 65);
+      if ($('setting-sugar-goal')) {
+        state.settings.sugarGoal = Math.max(10, Number($('setting-sugar-goal').value) || 50);
+      }
+      if ($('setting-salt-goal')) {
+        state.settings.saltGoal = Math.max(1, Number($('setting-salt-goal').value) || 5);
+      }
       persist();
       closeModal('settings-modal');
       renderToday();
@@ -1816,6 +2081,46 @@
         foodsLibraryMode = modeBtn.dataset.foodsMode === 'ingredients' ? 'ingredients' : 'recipes';
         foodsRenderLimit = 80;
         renderFoodsLibrary();
+        return;
+      }
+
+      const cfModeBtn = e.target.closest('[data-cf-mode]');
+      if (cfModeBtn) {
+        customFoodMode = cfModeBtn.dataset.cfMode === 'manual' ? 'manual' : 'ingredients';
+        renderCustomFoodBuilder();
+        return;
+      }
+
+      const cfRemoveBtn = e.target.closest('[data-cf-remove-idx]');
+      if (cfRemoveBtn) {
+        const idx = Number(cfRemoveBtn.dataset.cfRemoveIdx);
+        if (Number.isInteger(idx) && customFoodItems[idx]) {
+          customFoodItems.splice(idx, 1);
+          renderCustomFoodBuilder();
+        }
+        return;
+      }
+
+      const cfStepBtn = e.target.closest('[data-cf-step-idx]');
+      if (cfStepBtn) {
+        const idx = Number(cfStepBtn.dataset.cfStepIdx);
+        const delta = Number(cfStepBtn.dataset.cfStepDelta) || 0;
+        if (Number.isInteger(idx) && customFoodItems[idx]) {
+          customFoodItems[idx].amount = Math.max(
+            0,
+            Number(((Number(customFoodItems[idx].amount) || 0) + delta).toFixed(1))
+          );
+          renderCustomFoodBuilder();
+        }
+        return;
+      }
+
+      const cfPickerAddBtn = e.target.closest('[data-cf-picker-add-ing]');
+      if (cfPickerAddBtn) {
+        const ingId = cfPickerAddBtn.dataset.cfPickerAddIng;
+        const qtyInput = document.querySelector(`[data-cf-picker-qty-for="${CSS.escape(ingId)}"]`);
+        const qty = qtyInput ? Number(qtyInput.value) : null;
+        addIngredientToCustomRecipe(ingId, qty);
         return;
       }
 

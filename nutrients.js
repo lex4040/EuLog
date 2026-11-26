@@ -41,7 +41,7 @@
   };
 
   function emptyNutrientTotals() {
-    const out = { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0, sodium: 0 };
+    const out = { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0, salt: 0, sodium: 0 };
     for (const n of VITAL_NUTRIENTS) out[n.key] = 0;
     return out;
   }
@@ -59,7 +59,13 @@
     totals.sugar += (food.sugar || 0) * mult;
 
     const nuts = food.nutrients || {};
-    totals.sodium += (nuts.sodium || 0) * mult;
+    const sodiumMg = Number(nuts.sodium) || 0;
+    const saltG =
+      food.salt != null && !Number.isNaN(Number(food.salt))
+        ? Number(food.salt)
+        : (sodiumMg * 2.5) / 1000;
+    totals.salt += saltG * mult;
+    totals.sodium += sodiumMg * mult;
     for (const n of VITAL_NUTRIENTS) {
       totals[n.key] += (nuts[n.key] || 0) * mult;
     }
@@ -72,6 +78,8 @@
     if (Number(supp.carbs) > 0) totals.carbs += Number(supp.carbs);
     if (Number(supp.fat) > 0) totals.fat += Number(supp.fat);
     if (Number(supp.fiber) > 0) totals.fiber += Number(supp.fiber);
+    if (Number(supp.sugar) > 0) totals.sugar += Number(supp.sugar);
+    if (Number(supp.salt) > 0) totals.salt += Number(supp.salt);
     if (!supp.nutrients) return;
     for (const n of VITAL_NUTRIENTS) {
       const val = Number(supp.nutrients[n.key]);

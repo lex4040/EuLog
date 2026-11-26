@@ -617,7 +617,36 @@ button {
 .fill-carbs { background: var(--carbs); }
 .fill-fat { background: var(--fat); }
 .fill-fiber { background: var(--fiber); }
+.fill-sugar { background: var(--accent); opacity: 0.78; }
+.fill-salt { background: var(--ink-secondary); opacity: 0.72; }
 .fill-accent { background: var(--accent); }
+
+.bar-fill.is-over {
+  background: var(--danger);
+  opacity: 1;
+}
+
+.macro-meta strong.is-over {
+  color: var(--danger);
+}
+
+.macro-limit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--rule);
+}
+
+.cf-builder-section {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.cf-builder-section[hidden] {
+  display: none;
+}
 
 /* ==================== QUICK ACTIONS ==================== */
 .quick-actions-row {

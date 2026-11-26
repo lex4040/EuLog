@@ -14,6 +14,8 @@
     carbsGoal: 225,
     fatGoal: 65,
     fiberGoal: 28,
+    sugarGoal: 50,
+    saltGoal: 5,
     dvProfile: 'standard', // 'standard' | 'female' | 'male'
     includeSuppsInWeekly: true,
   };
