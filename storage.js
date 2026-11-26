@@ -16,6 +16,15 @@
     fiberGoal: 28,
     sugarGoal: 50,
     saltGoal: 5,
+    waterGoal: 2500, // ml
+    bodyMetrics: {
+      sex: 'male',
+      age: 28,
+      heightCm: 178,
+      weightKg: 75,
+      activity: '1.55',
+      objective: 'maintain',
+    },
     dvProfile: 'standard', // 'standard' | 'female' | 'male'
     includeSuppsInWeekly: true,
   };
@@ -86,14 +95,19 @@
     }));
     return {
       version: 1,
-      settings: { ...DEFAULT_SETTINGS },
-      foodLogs: {},         // { [dateKey]: [{ id, foodId, meal, servings, createdAt, snapshot }] }
-      supplementLogs: {},   // { [dateKey]: [suppId, ...] }
+      settings: {
+        ...DEFAULT_SETTINGS,
+        bodyMetrics: { ...DEFAULT_SETTINGS.bodyMetrics },
+      },
+      foodLogs: {},          // { [dateKey]: [{ id, foodId, meal, servings, createdAt, snapshot }] }
+      supplementLogs: {},    // { [dateKey]: [suppId, ...] }
+      waterLogs: {},         // { [dateKey]: number (ml) }
       supplements: defaults,
-      customFoods: [],       // user-created custom foods with same schema as USDA_FOODS
+      customFoods: [],       // user-created custom foods/recipes
       customIngredients: [], // user-added ingredients (per 100 g / 100 ml SI)
       defaultRecipes: {},    // { [foodId]: [{ ingredientId, amount, inlineIngredient? }] }
       savedRecipes: {},      // { [foodId]: [{ id, label, items: [...] }] }
+      barcodeCache: {},      // { [ean]: { barcode, name, brand, unit, defaultAmount, calories, protein, carbs, fat, sugar, salt, fiber } }
       favorites: ['atlantic-salmon', 'avocado', 'greek-yogurt-0', 'spinach-raw', 'blueberries', 'whole-egg'],
       dailyNotes: {},        // { [dateKey]: string }
     };
@@ -144,14 +158,23 @@
         ...base,
         ...parsed,
         migrations,
-        settings: { ...DEFAULT_SETTINGS, ...(parsed.settings || {}) },
+        settings: {
+          ...DEFAULT_SETTINGS,
+          ...(parsed.settings || {}),
+          bodyMetrics: {
+            ...DEFAULT_SETTINGS.bodyMetrics,
+            ...(parsed.settings?.bodyMetrics || {}),
+          },
+        },
         foodLogs: parsed.foodLogs || {},
         supplementLogs: parsed.supplementLogs || {},
+        waterLogs: parsed.waterLogs && typeof parsed.waterLogs === 'object' ? parsed.waterLogs : {},
         supplements,
         customFoods: Array.isArray(parsed.customFoods) ? parsed.customFoods : [],
         customIngredients: Array.isArray(parsed.customIngredients) ? parsed.customIngredients : [],
         defaultRecipes: parsed.defaultRecipes && typeof parsed.defaultRecipes === 'object' ? parsed.defaultRecipes : {},
         savedRecipes: parsed.savedRecipes && typeof parsed.savedRecipes === 'object' ? parsed.savedRecipes : {},
+        barcodeCache: parsed.barcodeCache && typeof parsed.barcodeCache === 'object' ? parsed.barcodeCache : {},
         favorites: Array.isArray(parsed.favorites) ? parsed.favorites : base.favorites,
         dailyNotes: parsed.dailyNotes || {},
       };

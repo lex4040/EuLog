@@ -75,6 +75,12 @@
   let customFoodMode = 'ingredients'; // 'ingredients' | 'manual'
   let customFoodItems = [];
   let customFoodPickerQuery = '';
+  let scanModalMode = 'photo'; // 'photo' | 'barcode'
+  let activeScanPortion = 1;
+  let lastScanOutput = null;
+  let barcodeCameraStream = null;
+  let barcodeScanTimer = null;
+  let activeBarcodeProduct = null;
   let pendingMealTarget = guessDefaultMeal();
   let deferredInstallPrompt = null;
   let toastTimer = null;
@@ -278,6 +284,16 @@
           `;
         })
         .join('');
+    }
+
+    // Hydration tracker (SI ml / L)
+    const waterMl = Math.max(0, Number(state.waterLogs?.[selectedDateKey]) || 0);
+    const waterGoal = Math.max(500, Number(state.settings.waterGoal) || 2500);
+    if ($('today-water-val')) {
+      $('today-water-val').textContent = `${waterMl.toLocaleString()} / ${waterGoal.toLocaleString()} ml · ${(waterMl / 1000).toFixed(2)} L`;
+    }
+    if ($('today-water-bar')) {
+      $('today-water-bar').style.width = `${Math.min(100, Math.round((waterMl / waterGoal) * 100))}%`;
     }
 
     // Meal cards
@@ -700,9 +716,90 @@
   /* ==================== TAB 4: RECIPES & INGREDIENTS LIBRARY ==================== */
   let foodsRenderLimit = 80;
 
+  function getRecentAndFrequentMeals(limit = 6) {
+    const map = new Map();
+    const dates = Object.keys(state.foodLogs || {}).sort().reverse();
+    dates.forEach((dateKey, dateIdx) => {
+      const list = state.foodLogs[dateKey] || [];
+      for (const entry of list) {
+        if (!entry || !entry.foodId) continue;
+        const existing = map.get(entry.foodId);
+        const recencyBoost = Math.max(0, 7 - dateIdx);
+        if (existing) {
+          existing.count += 1;
+          existing.score += 2 + recencyBoost * 0.4;
+          if ((entry.createdAt || '') > (existing.lastAt || '')) {
+            existing.lastAt = entry.createdAt || '';
+            existing.lastServings = Number(entry.servings) || 1;
+            existing.lastSnapshot = entry.snapshot || existing.lastSnapshot;
+          }
+        } else {
+          map.set(entry.foodId, {
+            foodId: entry.foodId,
+            count: 1,
+            score: 3 + recencyBoost,
+            lastAt: entry.createdAt || '',
+            lastServings: Number(entry.servings) || 1,
+            lastSnapshot: entry.snapshot || null,
+          });
+        }
+      }
+    });
+    return [...map.values()]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit);
+  }
+
+  function renderRecentFoods() {
+    const card = $('foods-recent-card');
+    const listEl = $('foods-recent-list');
+    if (!card || !listEl) return;
+
+    if (foodsLibraryMode !== 'recipes' || foodsSearchQuery.trim().length > 0) {
+      card.hidden = true;
+      return;
+    }
+
+    const recents = getRecentAndFrequentMeals(6);
+    if (recents.length === 0) {
+      card.hidden = true;
+      return;
+    }
+
+    const html = recents
+      .map((item) => {
+        const live = findFoodById(item.foodId);
+        const food = live ? getEffectiveFoodForLog(live) : item.lastSnapshot;
+        if (!food) return '';
+        const mult = item.lastServings || 1;
+        const kcal = Math.round((food.calories || 0) * mult);
+        const p = Math.round((food.protein || 0) * mult);
+        const multLabel = mult === 1 ? '' : `${mult}× · `;
+        return `
+          <div class="recent-chip">
+            <button type="button" class="recent-chip-main" data-open-food-id="${escapeHtml(item.foodId)}">
+              <span class="recent-chip-name">${escapeHtml(food.name)}</span>
+              <span class="recent-chip-meta">${multLabel}${kcal} kcal · ${p}g P${item.count > 1 ? ` · ${item.count}×` : ''}</span>
+            </button>
+            <button type="button" class="btn btn-primary btn-xs" data-quick-log-food-id="${escapeHtml(item.foodId)}" data-quick-log-servings="${mult}">+ Log</button>
+          </div>
+        `;
+      })
+      .filter(Boolean)
+      .join('');
+
+    if (!html) {
+      card.hidden = true;
+      return;
+    }
+    listEl.innerHTML = html;
+    card.hidden = false;
+  }
+
   function renderFoodsLibrary() {
     $('foods-mode-recipes-btn')?.classList.toggle('is-active', foodsLibraryMode === 'recipes');
     $('foods-mode-ingredients-btn')?.classList.toggle('is-active', foodsLibraryMode === 'ingredients');
+    renderRecentFoods();
 
     const customBtn = $('open-custom-food-btn');
     const searchInput = $('foods-search-input');
@@ -711,7 +808,7 @@
       const allIngs = getAllIngredients();
       const customIngCount = (state.customIngredients || []).length;
       if (customBtn) customBtn.textContent = '+ Custom Ingredient';
-      if (searchInput) searchInput.placeholder = `Search ${allIngs.length} ingredients (per 100 g / 100 ml)...`;
+      if (searchInput) searchInput.placeholder = `Search ${allIngs.length} ingredients (English or Ελληνικά)...`;
       $('foods-count-subtitle').textContent =
         customIngCount > 0
           ? `${INGREDIENTS_DB.length} SI ingredients + ${customIngCount} custom ingredients (per 100 g / 100 ml)`
@@ -877,7 +974,10 @@
   function closeModal(id) {
     const el = $(id);
     if (!el) return;
-    if (id === 'scan-modal') stopLiveCamera();
+    if (id === 'scan-modal') {
+      stopLiveCamera();
+      stopBarcodeCamera();
+    }
     if (id === 'food-log-modal') editingEntryId = null;
     el.hidden = true;
     const anyOpen = [...document.querySelectorAll('.modal-backdrop')].some((m) => !m.hidden);
@@ -895,7 +995,7 @@
     );
   }
 
-  function openFoodLogModal(foodId, mealOverride, existingEntry = null) {
+  function openFoodLogModal(foodId, mealOverride, existingEntry = null, servingsOverride = null) {
     const food = findFoodById(foodId) || existingEntry?.snapshot;
     if (!food) return;
     activeModalFood = food;
@@ -916,7 +1016,11 @@
     $('log-meal-select').value = existingEntry
       ? existingEntry.meal
       : mealOverride || pendingMealTarget || guessDefaultMeal();
-    const servVal = existingEntry ? String(existingEntry.servings || 1) : '1';
+    const servVal = existingEntry
+      ? String(existingEntry.servings || 1)
+      : servingsOverride
+        ? String(servingsOverride)
+        : '1';
     $('log-servings-input').value = servVal;
     $('recipe-ing-search').value = '';
     $('food-modal-submit-btn').textContent = editingEntryId ? 'Save Changes' : 'Add to Day';
@@ -1212,6 +1316,16 @@
     }
   }
 
+  function setScanMode(mode) {
+    scanModalMode = mode === 'barcode' ? 'barcode' : 'photo';
+    stopLiveCamera();
+    stopBarcodeCamera();
+    $('scan-mode-photo-btn')?.classList.toggle('is-active', scanModalMode === 'photo');
+    $('scan-mode-barcode-btn')?.classList.toggle('is-active', scanModalMode === 'barcode');
+    if ($('scan-photo-section')) $('scan-photo-section').hidden = scanModalMode !== 'photo';
+    if ($('scan-barcode-section')) $('scan-barcode-section').hidden = scanModalMode !== 'barcode';
+  }
+
   function openScanModal() {
     $('scan-meal-select').value = pendingMealTarget || guessDefaultMeal();
     const st = window.EuLogVision.getStatus();
@@ -1219,7 +1333,51 @@
       st.status === 'ready'
         ? `SigLIP Vision Ready (${st.device.toUpperCase()})`
         : `SigLIP Vision (q4 · ${USDA_FOODS.length} Foods)`;
+    setScanMode(scanModalMode);
+    document.querySelectorAll('[data-scan-portion]').forEach((b) => {
+      b.classList.toggle('is-active', Number(b.dataset.scanPortion) === activeScanPortion);
+    });
     openModal('scan-modal');
+  }
+
+  function renderScanResults() {
+    if (!lastScanOutput || !Array.isArray(lastScanOutput.results)) return;
+    const output = lastScanOutput;
+    const mult = Number(activeScanPortion) || 1;
+    const multBadge = mult === 1 ? '' : `${mult}× · `;
+    const maxScore = Math.max(1e-9, ...output.results.map((r) => r.score));
+    $('scan-results-list').innerHTML = output.results
+      .map(({ food: rawFood, score }, idx) => {
+        const food = getEffectiveFoodForLog(rawFood);
+        const relPct = Math.max(18, Math.min(100, Math.round((score / maxScore) * 100)));
+        const dispPct =
+          output.engine === 'siglip'
+            ? `${Math.round(score * 100)}% match`
+            : `${Math.round(score * 100)}% visual`;
+        const kcal = Math.round((food.calories || 0) * mult);
+        const p = ((food.protein || 0) * mult).toFixed(1);
+        const c = ((food.carbs || 0) * mult).toFixed(1);
+        const sug = ((food.sugar || 0) * mult).toFixed(1);
+        const salt = (getFoodSaltGrams(food) * mult).toFixed(1);
+        return `
+          <div class="scan-result-row">
+            <div class="scan-result-info">
+              <div class="scan-result-top">
+                <strong>${escapeHtml(food.name)}</strong>
+                <span class="entry-meta">${idx === 0 ? '★ ' : ''}${dispPct} · ${kcal} kcal</span>
+              </div>
+              <span class="entry-meta">${multBadge}${escapeHtml(food.serving)} · ${p}g P · ${c}g C · ${sug}g Sug · ${salt}g Salt</span>
+              <div class="scan-conf-bar"><div class="scan-conf-fill" style="width:${relPct}%"></div></div>
+            </div>
+            <div class="scan-row-actions">
+              <button type="button" class="btn btn-soft btn-xs" data-scan-custom-id="${escapeHtml(rawFood.id)}">Edit</button>
+              <button type="button" class="btn btn-primary btn-xs" data-scan-log-id="${escapeHtml(rawFood.id)}">+ Log</button>
+            </div>
+          </div>
+        `;
+      })
+      .join('');
+    $('scan-results-section').hidden = false;
   }
 
   async function analyzePhotoSource(source) {
@@ -1257,35 +1415,8 @@
           ? `Matched across all ${output.totalFoods || USDA_FOODS.length} recipes`
           : 'Connect once to cache 60 MB SigLIP Vision weights';
 
-      const maxScore = Math.max(1e-9, ...output.results.map((r) => r.score));
-      $('scan-results-list').innerHTML = output.results
-        .map(({ food: rawFood, score }, idx) => {
-          const food = getEffectiveFoodForLog(rawFood);
-          const relPct = Math.max(18, Math.min(100, Math.round((score / maxScore) * 100)));
-          const dispPct =
-            output.engine === 'siglip'
-              ? `${Math.round(score * 100)}% match`
-              : `${Math.round(score * 100)}% visual`;
-          return `
-            <div class="scan-result-row">
-              <div class="scan-result-info">
-                <div class="scan-result-top">
-                  <strong>${escapeHtml(food.name)}</strong>
-                  <span class="entry-meta">${idx === 0 ? '★ ' : ''}${dispPct} · ${Math.round(food.calories)} kcal</span>
-                </div>
-                <span class="entry-meta">${escapeHtml(food.serving)} · ${food.protein}g P · ${food.carbs}g C · ${food.sugar}g Sug · ${getFoodSaltGrams(food).toFixed(1)}g Salt</span>
-                <div class="scan-conf-bar"><div class="scan-conf-fill" style="width:${relPct}%"></div></div>
-              </div>
-              <div class="scan-row-actions">
-                <button type="button" class="btn btn-soft btn-xs" data-scan-custom-id="${escapeHtml(rawFood.id)}">Edit</button>
-                <button type="button" class="btn btn-primary btn-xs" data-scan-log-id="${escapeHtml(rawFood.id)}">+ Log</button>
-              </div>
-            </div>
-          `;
-        })
-        .join('');
-
-      $('scan-results-section').hidden = false;
+      lastScanOutput = output;
+      renderScanResults();
     } catch (err) {
       console.error('Photo scan failed:', err);
       progText.textContent = 'Could not read that photo — try Live Camera or another image';
@@ -1301,6 +1432,255 @@
     }
     stopLiveCamera();
     analyzePhotoSource(file);
+  }
+
+  /* ==================== EU BARCODE SCANNER (OPEN FOOD FACTS + OFFLINE CACHE) ==================== */
+  function stopBarcodeCamera() {
+    if (barcodeScanTimer) {
+      clearInterval(barcodeScanTimer);
+      barcodeScanTimer = null;
+    }
+    if (barcodeCameraStream) {
+      for (const track of barcodeCameraStream.getTracks()) track.stop();
+      barcodeCameraStream = null;
+    }
+    const video = $('barcode-live-video');
+    if (video) {
+      video.srcObject = null;
+      video.hidden = true;
+    }
+    if ($('barcode-empty-prompt')) $('barcode-empty-prompt').hidden = false;
+    if ($('barcode-start-cam-btn')) $('barcode-start-cam-btn').hidden = false;
+    if ($('barcode-stop-cam-btn')) $('barcode-stop-cam-btn').hidden = true;
+  }
+
+  async function startBarcodeCamera() {
+    if (!('BarcodeDetector' in window)) {
+      if ($('barcode-status-note')) {
+        $('barcode-status-note').innerHTML =
+          'Live camera barcode detection is not built into this browser — type or paste the <strong>EAN-13 barcode</strong> below instead.';
+      }
+      $('barcode-manual-input')?.focus();
+      showToast('Type the EAN-13 number below to look it up');
+      return;
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showToast('Camera unavailable — enter the EAN-13 barcode below');
+      return;
+    }
+    try {
+      stopBarcodeCamera();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: false,
+      });
+      barcodeCameraStream = stream;
+      const video = $('barcode-live-video');
+      video.srcObject = stream;
+      video.hidden = false;
+      $('barcode-empty-prompt').hidden = true;
+      $('barcode-start-cam-btn').hidden = true;
+      $('barcode-stop-cam-btn').hidden = false;
+      await video.play().catch(() => {});
+
+      const detector = new window.BarcodeDetector({
+        formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'],
+      });
+      barcodeScanTimer = setInterval(async () => {
+        if (!video || video.readyState < 2) return;
+        try {
+          const hits = await detector.detect(video);
+          if (hits && hits.length > 0 && hits[0].rawValue) {
+            const code = String(hits[0].rawValue).trim();
+            stopBarcodeCamera();
+            $('barcode-manual-input').value = code;
+            lookupBarcode(code);
+          }
+        } catch {
+          // ignore frame decode error
+        }
+      }, 350);
+    } catch {
+      stopBarcodeCamera();
+      showToast('Camera blocked — enter the barcode number below');
+    }
+  }
+
+  function renderBarcodeResult(product, sourceNote = '') {
+    const card = $('barcode-result-card');
+    if (!card) return;
+    if (!product) {
+      card.hidden = true;
+      card.innerHTML = '';
+      return;
+    }
+    activeBarcodeProduct = product;
+    const unit = product.unit || 'g';
+    const defAmt = product.defaultAmount || 100;
+    card.innerHTML = `
+      <div class="subrecipe-head">
+        <div>
+          <strong style="font-size:0.95rem;">${escapeHtml(product.name)}</strong>
+          <span class="subrecipe-hint">${escapeHtml(product.brand || 'EU Packaged Product')} · EAN ${escapeHtml(product.barcode)}${sourceNote ? ` · ${escapeHtml(sourceNote)}` : ''}</span>
+        </div>
+      </div>
+      <div class="modal-macro-strip">
+        <div class="modal-macro-cell"><strong>${Math.round(product.calories)}</strong><span>kcal / 100${escapeHtml(unit)}</span></div>
+        <div class="modal-macro-cell"><strong>${product.protein} g</strong><span>Protein</span></div>
+        <div class="modal-macro-cell"><strong>${product.carbs} g</strong><span>Carbs</span></div>
+        <div class="modal-macro-cell"><strong>${product.fat} g</strong><span>Fat</span></div>
+      </div>
+      <div class="modal-macro-extra">
+        <div class="modal-macro-extra-cell"><strong>${product.sugar} g</strong><span>Sugars</span></div>
+        <div class="modal-macro-extra-cell"><strong>${product.salt} g</strong><span>Salt</span></div>
+        <div class="modal-macro-extra-cell"><strong>${product.fiber} g</strong><span>Fiber</span></div>
+      </div>
+      <div class="barcode-portion-row">
+        <label for="barcode-portion-input" class="field-label" style="margin:0;">Portion to log:</label>
+        <div class="qty-stepper">
+          <input id="barcode-portion-input" type="number" class="qty-input" min="1" max="2000" step="any" value="${defAmt}" />
+          <span class="qty-unit">${escapeHtml(unit)}</span>
+        </div>
+      </div>
+      <div class="barcode-actions-row">
+        <button type="button" class="btn btn-primary btn-sm" data-barcode-log="1">+ Log Portion</button>
+        <button type="button" class="btn btn-soft btn-sm" data-barcode-save-ing="1">Save to Ingredients DB</button>
+      </div>
+    `;
+    card.hidden = false;
+  }
+
+  async function lookupBarcode(rawCode) {
+    const code = String(rawCode || '').replace(/[^\d]/g, '').trim();
+    const card = $('barcode-result-card');
+    if (code.length < 6) {
+      showToast('Enter a valid barcode (6–14 digits)');
+      return;
+    }
+
+    // 1. Offline-first: check local barcode cache
+    if (state.barcodeCache && state.barcodeCache[code]) {
+      renderBarcodeResult(state.barcodeCache[code], 'Offline Cache');
+      showToast(`Found cached barcode ${code}`);
+      return;
+    }
+
+    card.hidden = false;
+    card.innerHTML = '<p class="section-subtitle" style="margin:0;">Looking up EU nutrition label via Open Food Facts…</p>';
+
+    try {
+      const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=product_name,brands,serving_size,quantity,nutriments`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      const prod = data?.product;
+      if (!prod || data.status === 0) {
+        card.innerHTML = `
+          <p class="section-subtitle" style="margin:0;">Barcode <strong>${escapeHtml(code)}</strong> not found in Open Food Facts. You can add it manually to your Ingredients DB.</p>
+          <button type="button" class="btn btn-soft btn-sm" data-barcode-manual-add="1">+ Add Manually to Ingredients DB</button>
+        `;
+        return;
+      }
+
+      const n = prod.nutriments || {};
+      const kcal = Number(n['energy-kcal_100g'] ?? (n.energy_100g ? Number(n.energy_100g) / 4.184 : 0)) || 0;
+      const protein = Number(n.proteins_100g) || 0;
+      const carbs = Number(n.carbohydrates_100g) || 0;
+      const sugar = Number(n.sugars_100g) || 0;
+      const fat = Number(n.fat_100g) || 0;
+      const fiber = Number(n.fiber_100g) || 0;
+      const salt =
+        n.salt_100g != null
+          ? Number(n.salt_100g)
+          : n.sodium_100g != null
+            ? Number(n.sodium_100g) * 2.5
+            : 0;
+      const isLiquid = /\b(ml|cl|l)\b/i.test(`${prod.quantity || ''} ${prod.serving_size || ''}`);
+      const parsedServing = parseFloat(String(prod.serving_size || '').match(/(\d+(?:\.\d+)?)\s*(g|ml)/i)?.[1] || '100');
+
+      const normalized = {
+        barcode: code,
+        name: String(prod.product_name || `Product ${code}`).trim(),
+        brand: String(prod.brands || '').split(',')[0].trim(),
+        unit: isLiquid ? 'ml' : 'g',
+        defaultAmount: Math.max(5, Math.round(parsedServing || 100)),
+        calories: Number(kcal.toFixed(1)),
+        protein: Number(protein.toFixed(1)),
+        carbs: Number(carbs.toFixed(1)),
+        sugar: Number(sugar.toFixed(1)),
+        fat: Number(fat.toFixed(1)),
+        salt: Number(salt.toFixed(2)),
+        fiber: Number(fiber.toFixed(1)),
+      };
+
+      if (!state.barcodeCache) state.barcodeCache = {};
+      state.barcodeCache[code] = normalized;
+      persist();
+      renderBarcodeResult(normalized, 'Open Food Facts EU');
+    } catch (err) {
+      console.warn('Barcode lookup failed:', err);
+      card.innerHTML = `
+        <p class="section-subtitle" style="margin:0;">Offline or unable to reach Open Food Facts right now. Previously scanned barcodes work offline, or you can add this item to your Ingredients DB.</p>
+        <button type="button" class="btn btn-soft btn-sm" data-barcode-manual-add="1">+ Add Manually to Ingredients DB</button>
+      `;
+    }
+  }
+
+  function logActiveBarcodeProduct() {
+    if (!activeBarcodeProduct) return;
+    const p = activeBarcodeProduct;
+    const amt = Math.max(1, Number($('barcode-portion-input')?.value) || p.defaultAmount || 100);
+    const ratio = amt / 100;
+    const meal = $('scan-meal-select')?.value || pendingMealTarget || guessDefaultMeal();
+    const foodObj = {
+      id: `ean:${p.barcode}`,
+      name: p.brand ? `${p.name} (${p.brand})` : p.name,
+      category: 'Packaged (EU)',
+      serving: `${amt} ${p.unit || 'g'}`,
+      grams: amt,
+      calories: Math.round(p.calories * ratio),
+      protein: Number((p.protein * ratio).toFixed(1)),
+      carbs: Number((p.carbs * ratio).toFixed(1)),
+      fat: Number((p.fat * ratio).toFixed(1)),
+      fiber: Number((p.fiber * ratio).toFixed(1)),
+      sugar: Number((p.sugar * ratio).toFixed(1)),
+      salt: Number((p.salt * ratio).toFixed(2)),
+      description: `${p.name}${p.brand ? ` (${p.brand})` : ''} — EU barcode ${p.barcode} (${amt} ${p.unit || 'g'}). Macros: Protein ${(p.protein * ratio).toFixed(1)} g · Carbs ${(p.carbs * ratio).toFixed(1)} g · Sugars ${(p.sugar * ratio).toFixed(1)} g · Fat ${(p.fat * ratio).toFixed(1)} g · Salt ${(p.salt * ratio).toFixed(2)} g.`,
+      nutrients: { sodium: Math.round(((p.salt * ratio) / 2.5) * 1000) },
+    };
+    logFoodEntry(foodObj, meal, 1, selectedDateKey);
+  }
+
+  function saveActiveBarcodeToIngredients() {
+    if (!activeBarcodeProduct) return;
+    const p = activeBarcodeProduct;
+    const ingId = `ean-${p.barcode}`;
+    if (!Array.isArray(state.customIngredients)) state.customIngredients = [];
+    const exists = state.customIngredients.find((i) => i.id === ingId);
+    const entry = {
+      id: ingId,
+      name: p.brand ? `${p.name} (${p.brand})` : p.name,
+      category: 'Oils & Sauces',
+      unit: p.unit || 'g',
+      defaultAmount: p.defaultAmount || 100,
+      calories: p.calories,
+      protein: p.protein,
+      carbs: p.carbs,
+      fat: p.fat,
+      sugar: p.sugar,
+      salt: p.salt,
+      fiber: p.fiber,
+      nutrients: { sodium: Math.round((p.salt / 2.5) * 1000) },
+      isCustom: true,
+    };
+    if (exists) {
+      Object.assign(exists, entry);
+    } else {
+      state.customIngredients.unshift(entry);
+    }
+    persist();
+    if (activeTab === 'foods') renderFoodsLibrary();
+    showToast(`Saved ${entry.name} to Ingredients DB (offline ready)`);
   }
 
   /* ==================== CUSTOM SUPPLEMENT MODAL ==================== */
@@ -1472,7 +1852,57 @@
     showToast(`Added ${ing.name} (${amt} ${ing.unit || 'g'})`);
   }
 
-  /* ==================== SETTINGS MODAL ==================== */
+  function adjustWater(deltaMl) {
+    if (!state.waterLogs) state.waterLogs = {};
+    const cur = Math.max(0, Number(state.waterLogs[selectedDateKey]) || 0);
+    const next = Math.max(0, Math.min(12000, cur + deltaMl));
+    if (next === 0) delete state.waterLogs[selectedDateKey];
+    else state.waterLogs[selectedDateKey] = next;
+    persist();
+    renderToday();
+    showToast(`Hydration: ${next.toLocaleString()} ml (${(next / 1000).toFixed(2)} L)`);
+  }
+
+  /* ==================== SETTINGS MODAL & METRIC CALCULATOR ==================== */
+  function calculateAndApplyMetricGoals() {
+    const sex = $('calc-sex')?.value === 'female' ? 'female' : 'male';
+    const age = Math.max(14, Math.min(100, Number($('calc-age')?.value) || 28));
+    const heightCm = Math.max(120, Math.min(230, Number($('calc-height')?.value) || 178));
+    const weightKg = Math.max(35, Math.min(220, Number($('calc-weight')?.value) || 75));
+    const activity = Math.max(1.2, Math.min(2.0, Number($('calc-activity')?.value) || 1.55));
+    const objective = $('calc-objective')?.value || 'maintain';
+
+    const bmr = 10 * weightKg + 6.25 * heightCm - 5 * age + (sex === 'male' ? 5 : -161);
+    let targetKcal = Math.round((bmr * activity) / 50) * 50;
+    if (objective === 'cut') targetKcal = Math.max(1200, targetKcal - 400);
+    else if (objective === 'bulk') targetKcal += 250;
+
+    const proteinPerKg = objective === 'cut' ? 2.0 : 1.8;
+    const proteinG = Math.round((weightKg * proteinPerKg) / 5) * 5;
+    const fatG = Math.round(((targetKcal * 0.27) / 9) / 5) * 5;
+    const carbsG = Math.max(50, Math.round(((targetKcal - proteinG * 4 - fatG * 9) / 4) / 5) * 5);
+    const sugarG = Math.min(50, Math.max(25, Math.round(((targetKcal * 0.09) / 4) / 5) * 5));
+    const waterMl = Math.max(1800, Math.min(4500, Math.round((weightKg * 35) / 100) * 100));
+
+    $('setting-cal-goal').value = targetKcal;
+    $('setting-protein-goal').value = proteinG;
+    $('setting-carbs-goal').value = carbsG;
+    $('setting-fat-goal').value = fatG;
+    if ($('setting-sugar-goal')) $('setting-sugar-goal').value = sugarG;
+    if ($('setting-salt-goal')) $('setting-salt-goal').value = 5;
+    if ($('setting-water-goal')) $('setting-water-goal').value = waterMl;
+
+    state.settings.bodyMetrics = {
+      sex,
+      age,
+      heightCm,
+      weightKg,
+      activity: String(activity),
+      objective,
+    };
+    showToast(`Calculated: ${targetKcal.toLocaleString()} kcal · ${proteinG}g P · ${waterMl.toLocaleString()} ml water`);
+  }
+
   function openSettingsModal() {
     $('setting-dv-profile').value = state.settings.dvProfile || 'standard';
     $('setting-cal-goal').value = state.settings.calorieGoal || 2000;
@@ -1481,6 +1911,15 @@
     $('setting-fat-goal').value = state.settings.fatGoal || 65;
     if ($('setting-sugar-goal')) $('setting-sugar-goal').value = state.settings.sugarGoal || 50;
     if ($('setting-salt-goal')) $('setting-salt-goal').value = state.settings.saltGoal || 5;
+    if ($('setting-water-goal')) $('setting-water-goal').value = state.settings.waterGoal || 2500;
+
+    const bm = state.settings.bodyMetrics || {};
+    if ($('calc-sex')) $('calc-sex').value = bm.sex || 'male';
+    if ($('calc-age')) $('calc-age').value = bm.age || 28;
+    if ($('calc-height')) $('calc-height').value = bm.heightCm || 178;
+    if ($('calc-weight')) $('calc-weight').value = bm.weightKg || 75;
+    if ($('calc-activity')) $('calc-activity').value = bm.activity || '1.55';
+    if ($('calc-objective')) $('calc-objective').value = bm.objective || 'maintain';
 
     const st = window.EuLogVision.getStatus();
     $('preload-siglip-status').textContent = st.status === 'ready' ? `Cached (${st.device.toUpperCase()})` : '';
@@ -1977,7 +2416,21 @@
       box.hidden = false;
     });
 
-    // Settings modal controls
+    // EU Barcode scanner listeners
+    $('barcode-start-cam-btn')?.addEventListener('click', startBarcodeCamera);
+    $('barcode-stop-cam-btn')?.addEventListener('click', stopBarcodeCamera);
+    $('barcode-lookup-btn')?.addEventListener('click', () => {
+      lookupBarcode($('barcode-manual-input')?.value);
+    });
+    $('barcode-manual-input')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        lookupBarcode(e.target.value);
+      }
+    });
+
+    // Settings modal controls & Metric Goal Calculator
+    $('calc-goals-btn')?.addEventListener('click', calculateAndApplyMetricGoals);
     document.querySelectorAll('[data-set-theme]').forEach((btn) => {
       btn.addEventListener('click', () => {
         applyTheme(btn.dataset.setTheme);
@@ -1995,6 +2448,19 @@
       }
       if ($('setting-salt-goal')) {
         state.settings.saltGoal = Math.max(1, Number($('setting-salt-goal').value) || 5);
+      }
+      if ($('setting-water-goal')) {
+        state.settings.waterGoal = Math.max(1000, Number($('setting-water-goal').value) || 2500);
+      }
+      if ($('calc-weight')) {
+        state.settings.bodyMetrics = {
+          sex: $('calc-sex')?.value === 'female' ? 'female' : 'male',
+          age: Math.max(14, Number($('calc-age')?.value) || 28),
+          heightCm: Math.max(120, Number($('calc-height')?.value) || 178),
+          weightKg: Math.max(35, Number($('calc-weight')?.value) || 75),
+          activity: String($('calc-activity')?.value || '1.55'),
+          objective: String($('calc-objective')?.value || 'maintain'),
+        };
       }
       persist();
       closeModal('settings-modal');
@@ -2302,12 +2768,70 @@
         return;
       }
 
+      const waterBtn = e.target.closest('[data-water-delta]');
+      if (waterBtn) {
+        adjustWater(Number(waterBtn.dataset.waterDelta) || 0);
+        return;
+      }
+
+      const quickLogBtn = e.target.closest('[data-quick-log-food-id]');
+      if (quickLogBtn) {
+        e.stopPropagation();
+        const foodId = quickLogBtn.dataset.quickLogFoodId;
+        const serv = Math.max(0.1, Number(quickLogBtn.dataset.quickLogServings) || 1);
+        const raw = findFoodById(foodId);
+        const meal = pendingMealTarget || guessDefaultMeal();
+        if (raw) {
+          logFoodEntry(getEffectiveFoodForLog(raw), meal, serv, selectedDateKey);
+          renderRecentFoods();
+        }
+        return;
+      }
+
+      const scanModeBtn = e.target.closest('[data-scan-mode]');
+      if (scanModeBtn) {
+        setScanMode(scanModeBtn.dataset.scanMode);
+        return;
+      }
+
+      const portionBtn = e.target.closest('[data-scan-portion]');
+      if (portionBtn) {
+        activeScanPortion = Number(portionBtn.dataset.scanPortion) || 1;
+        document.querySelectorAll('[data-scan-portion]').forEach((b) => {
+          b.classList.toggle('is-active', b === portionBtn);
+        });
+        renderScanResults();
+        return;
+      }
+
+      const bcLogBtn = e.target.closest('[data-barcode-log]');
+      if (bcLogBtn) {
+        logActiveBarcodeProduct();
+        bcLogBtn.textContent = '✓ Logged';
+        return;
+      }
+
+      const bcSaveIngBtn = e.target.closest('[data-barcode-save-ing]');
+      if (bcSaveIngBtn) {
+        saveActiveBarcodeToIngredients();
+        bcSaveIngBtn.textContent = '✓ Saved to DB';
+        return;
+      }
+
+      const bcManualBtn = e.target.closest('[data-barcode-manual-add]');
+      if (bcManualBtn) {
+        closeModal('scan-modal');
+        $('custom-ingredient-form').reset();
+        openModal('custom-ingredient-modal');
+        return;
+      }
+
       const scanCustomBtn = e.target.closest('[data-scan-custom-id]');
       if (scanCustomBtn) {
         const foodId = scanCustomBtn.dataset.scanCustomId;
         const meal = $('scan-meal-select').value;
         closeModal('scan-modal');
-        openFoodLogModal(foodId, meal);
+        openFoodLogModal(foodId, meal, null, activeScanPortion);
         return;
       }
 
@@ -2316,7 +2840,7 @@
         const rawFood = findFoodById(scanLogBtn.dataset.scanLogId);
         const meal = $('scan-meal-select').value;
         if (rawFood) {
-          logFoodEntry(getEffectiveFoodForLog(rawFood), meal, 1, selectedDateKey);
+          logFoodEntry(getEffectiveFoodForLog(rawFood), meal, activeScanPortion, selectedDateKey);
           scanLogBtn.textContent = '✓ Logged';
           scanLogBtn.classList.remove('btn-primary');
           scanLogBtn.classList.add('btn-logged');

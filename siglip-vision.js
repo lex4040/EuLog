@@ -298,10 +298,16 @@
     const norm = Math.max(1, total);
     const ranked = foods.map((food) => {
       const ratio = (buckets[food.colorHint] || 0) / norm;
-      const everydayBoost = ['Meals & Drinks', 'Fruits', 'Vegetables', 'Meat & Eggs', 'Seafood'].includes(
-        food.category
-      )
-        ? 0.08
+      const everydayBoost = [
+        'Greek & Med',
+        'Greek Meals',
+        'Meals & Drinks',
+        'Fruits',
+        'Vegetables',
+        'Meat & Eggs',
+        'Seafood',
+      ].includes(food.category)
+        ? 0.09
         : 0.02;
       return { food, score: Math.min(0.89, Math.max(0.08, ratio * 1.45 + everydayBoost)) };
     });

@@ -195,6 +195,22 @@
           <div id="today-supp-pills" class="supp-pill-row"></div>
         </section>
 
+        <!-- Hydration Tracker (SI ml / L) -->
+        <section id="today-water-card" class="sheet-card water-card" aria-label="Daily hydration tracker">
+          <div class="water-head">
+            <div>
+              <h3 class="section-title">Hydration</h3>
+              <p id="today-water-val" class="section-subtitle">0 / 2,500 ml &middot; 0.00 L</p>
+            </div>
+            <div class="water-actions">
+              <button type="button" class="btn btn-ghost btn-xs" data-water-delta="-250" aria-label="Remove 250 ml">&minus;250</button>
+              <button type="button" class="btn btn-soft btn-xs" data-water-delta="250">+250 ml</button>
+              <button type="button" class="btn btn-primary btn-xs" data-water-delta="500">+500 ml</button>
+            </div>
+          </div>
+          <div class="bar-track"><div id="today-water-bar" class="bar-fill fill-water"></div></div>
+        </section>
+
         <!-- Meals Container (Breakfast, Lunch, Dinner, Snacks) -->
         <div id="meals-container" class="meals-stack"></div>
 
@@ -376,6 +392,14 @@
           <div id="foods-category-chips" class="chip-scroll-row" role="tablist" aria-label="Food categories"></div>
         </section>
 
+        <section id="foods-recent-card" class="sheet-card recent-card" hidden aria-label="Recent and frequent meals">
+          <div class="section-head-row">
+            <h3 class="section-title">Recent &amp; Frequent</h3>
+            <span class="section-subtitle">1-tap log or edit</span>
+          </div>
+          <div id="foods-recent-list" class="recent-grid"></div>
+        </section>
+
         <div id="foods-list" class="foods-grid"></div>
       </section>
     </main>
@@ -485,13 +509,20 @@
     <div class="modal-sheet modal-sheet-lg">
       <div class="modal-head">
         <div>
-          <span class="modal-eyebrow">100% On-Device AI &middot; Private</span>
-          <h3 id="scan-modal-title" class="modal-title">SigLIP Food Photo Recognition</h3>
+          <span class="modal-eyebrow">100% On-Device AI &middot; EU Barcodes</span>
+          <h3 id="scan-modal-title" class="modal-title">Scan Meal or Barcode</h3>
         </div>
         <button type="button" class="modal-close-btn" data-close-modal="scan-modal" aria-label="Close">&times;</button>
       </div>
 
       <div class="modal-body">
+        <div class="foods-mode-bar">
+          <div class="segmented-toggle" role="tablist" aria-label="Scan mode">
+            <button id="scan-mode-photo-btn" type="button" class="seg-btn is-active" data-scan-mode="photo">Photo AI</button>
+            <button id="scan-mode-barcode-btn" type="button" class="seg-btn" data-scan-mode="barcode">Barcode (EU)</button>
+          </div>
+        </div>
+
         <div class="scan-toolbar">
           <div class="form-field-inline">
             <label for="scan-meal-select" class="field-label">Log into:</label>
@@ -505,51 +536,83 @@
           <span id="siglip-status-badge" class="status-chip">SigLIP Ready on Demand</span>
         </div>
 
-        <!-- Upload / In-App Live Camera Dropzone -->
-        <div id="scan-dropzone" class="scan-dropzone">
-          <video id="scan-live-video" class="scan-live-video" playsinline autoplay muted hidden></video>
-          <img id="scan-preview-img" class="scan-preview-img" alt="Meal photo preview" hidden />
-          <div id="scan-empty-prompt" class="scan-empty-prompt">
-            <div class="scan-camera-badge">
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" /><circle cx="12" cy="13" r="3" /></svg>
+        <!-- MODE 1: PHOTO AI -->
+        <div id="scan-photo-section" class="cf-builder-section">
+          <div class="scan-portion-bar" role="group" aria-label="Scan portion size">
+            <span class="subrecipe-micro-label">Portion:</span>
+            <button type="button" class="portion-pill" data-scan-portion="0.7">0.7&times; Small</button>
+            <button type="button" class="portion-pill is-active" data-scan-portion="1">1&times; Regular</button>
+            <button type="button" class="portion-pill" data-scan-portion="1.4">1.4&times; Large</button>
+          </div>
+
+          <!-- Upload / In-App Live Camera Dropzone -->
+          <div id="scan-dropzone" class="scan-dropzone">
+            <video id="scan-live-video" class="scan-live-video" playsinline autoplay muted hidden></video>
+            <img id="scan-preview-img" class="scan-preview-img" alt="Meal photo preview" hidden />
+            <div id="scan-empty-prompt" class="scan-empty-prompt">
+              <div class="scan-camera-badge">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" /><circle cx="12" cy="13" r="3" /></svg>
+              </div>
+              <p class="scan-drop-title">Snap or upload a meal photo</p>
+              <p class="scan-drop-sub">Captures an ultra-light <strong>224&times;224</strong> frame and runs <strong>SigLIP Vision (q4)</strong> locally against <strong>380 USDA &amp; Greek dishes</strong>.</p>
             </div>
-            <p class="scan-drop-title">Snap or upload a meal photo</p>
-            <p class="scan-drop-sub">Captures an ultra-light <strong>224&times;224</strong> frame and runs <strong>SigLIP Vision (q4)</strong> in a background worker against all <strong>380 USDA &amp; Greek foods</strong>.</p>
+            <div id="scan-live-controls" class="scan-input-buttons" hidden>
+              <button id="scan-capture-btn" type="button" class="btn btn-primary btn-sm">Capture &amp; Scan</button>
+              <button id="scan-stop-cam-btn" type="button" class="btn btn-ghost btn-sm">Cancel Camera</button>
+            </div>
+            <div id="scan-picker-controls" class="scan-input-buttons">
+              <button id="scan-open-cam-btn" type="button" class="btn btn-primary btn-sm">Live Camera</button>
+              <label class="btn btn-soft btn-sm file-trigger-btn">
+                <input id="scan-gallery-input" type="file" accept="image/*" hidden />
+                Choose Photo
+              </label>
+            </div>
           </div>
-          <div id="scan-live-controls" class="scan-input-buttons" hidden>
-            <button id="scan-capture-btn" type="button" class="btn btn-primary btn-sm">Capture &amp; Scan</button>
-            <button id="scan-stop-cam-btn" type="button" class="btn btn-ghost btn-sm">Cancel Camera</button>
+
+          <!-- Progress Bar -->
+          <div id="scan-progress-wrap" class="scan-progress-wrap" hidden>
+            <div class="scan-progress-meta">
+              <span id="scan-progress-text">Initializing SigLIP…</span>
+              <strong id="scan-progress-pct">0%</strong>
+            </div>
+            <div class="bar-track"><div id="scan-progress-bar" class="bar-fill fill-accent"></div></div>
           </div>
-          <div id="scan-picker-controls" class="scan-input-buttons">
-            <button id="scan-open-cam-btn" type="button" class="btn btn-primary btn-sm">Live Camera</button>
-            <label class="btn btn-soft btn-sm file-trigger-btn">
-              <input id="scan-gallery-input" type="file" accept="image/*" hidden />
-              Choose Photo
-            </label>
+
+          <!-- Predictions List -->
+          <div id="scan-results-section" hidden>
+            <div class="section-head-row">
+              <h4 id="scan-results-heading" class="mini-section-title">Top SigLIP Matches</h4>
+              <span id="scan-engine-note" class="section-subtitle"></span>
+            </div>
+            <div id="scan-results-list" class="scan-results-list"></div>
           </div>
         </div>
 
-        <!-- Progress Bar -->
-        <div id="scan-progress-wrap" class="scan-progress-wrap" hidden>
-          <div class="scan-progress-meta">
-            <span id="scan-progress-text">Initializing SigLIP…</span>
-            <strong id="scan-progress-pct">0%</strong>
+        <!-- MODE 2: EU SUPERMARKET BARCODE SCANNER -->
+        <div id="scan-barcode-section" class="cf-builder-section" hidden>
+          <div class="scan-dropzone">
+            <video id="barcode-live-video" class="scan-live-video" playsinline autoplay muted hidden></video>
+            <div id="barcode-empty-prompt" class="scan-empty-prompt">
+              <p class="scan-drop-title">Scan or type an EU barcode (EAN-13)</p>
+              <p id="barcode-status-note" class="scan-drop-sub">Looks up exact per-100g EU nutrition labels via <strong>Open Food Facts</strong> &amp; caches locally for offline reuse.</p>
+            </div>
+            <div class="scan-input-buttons">
+              <button id="barcode-start-cam-btn" type="button" class="btn btn-primary btn-sm">Camera Barcode Scan</button>
+              <button id="barcode-stop-cam-btn" type="button" class="btn btn-ghost btn-sm" hidden>Stop Camera</button>
+            </div>
           </div>
-          <div class="bar-track"><div id="scan-progress-bar" class="bar-fill fill-accent"></div></div>
-        </div>
 
-        <!-- Predictions List -->
-        <div id="scan-results-section" hidden>
-          <div class="section-head-row">
-            <h4 id="scan-results-heading" class="mini-section-title">Top SigLIP Matches</h4>
-            <span id="scan-engine-note" class="section-subtitle"></span>
+          <div class="barcode-input-row">
+            <input id="barcode-manual-input" type="text" inputmode="numeric" class="text-input subrecipe-input" placeholder="Enter EAN-13 / UPC (e.g., 5201054020017)..." autocomplete="off" />
+            <button id="barcode-lookup-btn" type="button" class="btn btn-primary btn-sm">Lookup</button>
           </div>
-          <div id="scan-results-list" class="scan-results-list"></div>
+
+          <div id="barcode-result-card" class="modal-vitals-box barcode-result-card" hidden></div>
         </div>
 
         <!-- Quick Refine / Search across all 2,154 foods -->
         <div class="scan-quick-search-box">
-          <input id="scan-quick-search" type="search" class="text-input" placeholder="Or search all 2,154 foods right here (e.g., kataifi, skepasti, freddo)..." autocomplete="off" />
+          <input id="scan-quick-search" type="search" class="text-input" placeholder="Or search all 2,154 recipes (English or Ελληνικά, e.g., αυγολέμονο)..." autocomplete="off" />
           <div id="scan-quick-results" class="scan-results-list" hidden></div>
         </div>
       </div>
@@ -824,6 +887,53 @@
           </select>
         </div>
 
+        <!-- Metric Goal Calculator (SI: kg, cm) -->
+        <div class="modal-vitals-box goal-calc-box">
+          <div>
+            <h4 class="mini-section-title" style="margin:0;">Metric Goal Calculator (Mifflin-St Jeor)</h4>
+            <span class="subrecipe-hint">Auto-calculates daily calories, macros &amp; hydration in SI units</span>
+          </div>
+          <div class="goal-calc-grid">
+            <div class="form-field">
+              <label for="calc-sex" class="field-label">Sex</label>
+              <select id="calc-sex" class="select-input">
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="calc-age" class="field-label">Age (yrs)</label>
+              <input id="calc-age" type="number" class="text-input" min="14" max="100" value="28" />
+            </div>
+            <div class="form-field">
+              <label for="calc-height" class="field-label">Height (cm)</label>
+              <input id="calc-height" type="number" class="text-input" min="120" max="230" value="178" />
+            </div>
+            <div class="form-field">
+              <label for="calc-weight" class="field-label">Weight (kg)</label>
+              <input id="calc-weight" type="number" class="text-input" min="35" max="220" step="0.5" value="75" />
+            </div>
+            <div class="form-field">
+              <label for="calc-activity" class="field-label">Activity</label>
+              <select id="calc-activity" class="select-input">
+                <option value="1.2">Sedentary</option>
+                <option value="1.375">Light (1–3d/wk)</option>
+                <option value="1.55" selected>Moderate (3–5d/wk)</option>
+                <option value="1.725">Active (6–7d/wk)</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="calc-objective" class="field-label">Objective</label>
+              <select id="calc-objective" class="select-input">
+                <option value="cut">Cut (&minus;400 kcal)</option>
+                <option value="maintain" selected>Maintain</option>
+                <option value="bulk">Lean Bulk (+250 kcal)</option>
+              </select>
+            </div>
+          </div>
+          <button id="calc-goals-btn" type="button" class="btn btn-soft btn-sm">Calculate &amp; Fill Goals</button>
+        </div>
+
         <div class="form-grid-2">
           <div class="form-field">
             <label for="setting-cal-goal" class="field-label">Daily Calories (kcal)</label>
@@ -848,6 +958,10 @@
           <div class="form-field">
             <label for="setting-salt-goal" class="field-label">Salt Limit (g)</label>
             <input id="setting-salt-goal" type="number" class="text-input" min="1" max="15" step="0.5" />
+          </div>
+          <div class="form-field">
+            <label for="setting-water-goal" class="field-label">Water Goal (ml)</label>
+            <input id="setting-water-goal" type="number" class="text-input" min="1000" max="6000" step="100" />
           </div>
         </div>
 
