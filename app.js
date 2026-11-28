@@ -896,7 +896,7 @@
     const allFoods = getAllFoods();
     const customCount = (state.customFoods || []).length;
     if (customBtn) customBtn.textContent = '+ Custom Recipe';
-    if (searchInput) searchInput.placeholder = 'Search 2,154 recipes (English or Ελληνικά, e.g., αυγολέμονο)...';
+    if (searchInput) searchInput.placeholder = 'Search 2,182 recipes (English or Ελληνικά, e.g., αυγολέμονο)...';
     $('foods-count-subtitle').textContent =
       customCount > 0
         ? `${USDA_FOODS.length.toLocaleString()} customizable recipes + ${customCount} custom · ${getAllIngredients().length} ingredients DB`
